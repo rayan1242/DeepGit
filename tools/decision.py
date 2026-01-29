@@ -11,11 +11,12 @@ if dotenv_path.exists():
 
 # LLM setup: DeepSeek-R1-Distill
 llm = ChatGroq(
-    model="deepseek-r1-distill-llama-70b",
+    model="llama-3.1-8b-instant",
     temperature=0.3,
     max_tokens=512,
-    max_retries=2,
+    max_retries=3,
 )
+
 
 # Prompt for decision making
 prompt = ChatPromptTemplate.from_messages([

@@ -156,7 +156,7 @@ Return ONLY the optimized query with no additional explanation."""
 
 
 @tool
-def fetch_github_repositories_tool(query: str, max_results: int = 1000, per_page: int = 100) -> List[Dict[str, Any]]:
+def fetch_github_repositories_tool(query: str, max_results: int = 10, per_page: int = 10) -> List[Dict[str, Any]]:
     """
     Searches GitHub repositories using the given query.
     """

@@ -55,11 +55,11 @@ class AgentStateOutput:
     final_ranked: List[Any] = field(default_factory=list)
 
 class AgentConfiguration(BaseModel):
-    max_results: int = Field(default=1000, title="Max Results", description="Maximum results to fetch from GitHub")
-    per_page: int = Field(default=100, title="Per Page", description="Results per page for GitHub API")
-    dense_retrieval_k: int = Field(default=100, title="Dense Retrieval Top K", description="Top K candidates to retrieve from FAISS")
-    cross_encoder_top_n: int = Field(default=50, title="Cross Encoder Top N", description="Top N candidates after re-ranking")
-    min_stars: int = Field(default=50, title="Minimum Stars", description="Minimum star count threshold for filtering")
+    max_results: int = Field(default=100, title="Max Results", description="Maximum results to fetch from GitHub")
+    per_page: int = Field(default=10, title="Per Page", description="Results per page for GitHub API")
+    dense_retrieval_k: int = Field(default=10, title="Dense Retrieval Top K", description="Top K candidates to retrieve from FAISS")
+    cross_encoder_top_n: int = Field(default=5, title="Cross Encoder Top N", description="Top N candidates after re-ranking")
+    min_stars: int = Field(default=5, title="Minimum Stars", description="Minimum star count threshold for filtering")
     cross_encoder_threshold: float = Field(default=5.5, title="Cross Encoder Threshold", description="Threshold for cross encoder score filtering")
     
     sem_model_name: str = Field(default="all-mpnet-base-v2", title="Sentence Transformer Model", description="Model for dense retrieval")

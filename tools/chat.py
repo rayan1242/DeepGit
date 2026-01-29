@@ -12,7 +12,7 @@ if dotenv_path.exists():
 
 # Step 1: Instantiate the Groq model with appropriate settings.
 llm = ChatGroq(
-    model="deepseek-r1-distill-llama-70b",
+    model="llama-3.1-8b-instant",
     temperature=0.3,
     max_tokens=512,
     max_retries=3,
