@@ -142,3 +142,13 @@ if __name__ == "__main__":
     )
     result = graph.invoke(initial)
     print(result["final_results"])
+
+
+# retrieval
+#  → filtering
+#  → analysis
+#  → ranking
+#  → adaptation_planner
+#  → (optional execution branch)
+#      ├─ github_repo_fork_and_push
+#      └─ resume_bullet_generator
