@@ -11,7 +11,8 @@ def convert_searchable_query(state, config):
     hw = state.hardware_spec or ""
 
     # 2) Generate the raw colon-separated tags
-    raw = iterative_convert_to_search_tags(state.user_query)
+    industry = getattr(state, "target_industry", "")
+    raw = iterative_convert_to_search_tags(state.user_query, industry=industry)
 
     # 3) Filter out any tag that matches the hardware spec token
     filtered = [tag for tag in raw.split(":") if tag and tag != hw]

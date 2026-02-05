@@ -30,8 +30,14 @@ def output_presentation(state, config):
         results_str += f"Cross-Encoder Score: {repo.get('cross_encoder_score', 0):.4f}\n"
         results_str += f"Activity Score: {repo.get('activity_score', 0):.2f}\n"
         results_str += f"Code Quality Score: {repo.get('code_quality_score', 0)}\n"
+        if 'personal_score' in repo:
+            results_str += f"Personal Project Score: {repo['personal_score']}/13\n"
+        results_str += f"License: {repo.get('license_name', 'Unknown')}\n"
         results_str += f"Final Score: {repo.get('final_score', 0):.4f}\n"
         results_str += f"Combined Doc Snippet: {repo['combined_doc'][:200]}...\n"
         results_str += '-' * 80 + "\n"
     # Do not update state.final_ranked here.
-    return {"final_results": results_str}
+    return {
+        "final_results": results_str,
+        "structured_results": state.final_ranked[:top_n]
+    }

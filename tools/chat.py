@@ -96,7 +96,7 @@ Output: data-augmentation:target-javascript
 
 Output must be ONLY the search tags separated by colons. Do not include any extra text, bullet points, or explanations.
 """),
-    ("human", "{query}")
+    ("human", "Query: {query}\nTarget Industry: {industry}")
 ])
 
 # Step 3: Chain the prompt with the LLM.
@@ -125,12 +125,12 @@ def valid_tags(tags: str) -> bool:
     return re.match(pattern, tags) is not None
 
 # Step 6: Define an iterative conversion function that refines the output if needed.
-def iterative_convert_to_search_tags(query: str, max_iterations: int = 2) -> str:
-    print(f"\n[iterative_convert_to_search_tags] Input Query: {query}")
+def iterative_convert_to_search_tags(query: str, industry: str = "", max_iterations: int = 2) -> str:
+    print(f"\n[iterative_convert_to_search_tags] Input Query: {query} | Industry: {industry}")
     refined_query = query
     for iteration in range(max_iterations):
         print(f"\nIteration {iteration+1}")
-        response = chain.invoke({"query": refined_query})
+        response = chain.invoke({"query": refined_query, "industry": industry})
         full_output = response.content.strip()
         tags_output = parse_search_tags(full_output)
         print(f"Output Tags: {tags_output}")
@@ -155,6 +155,6 @@ if __name__ == "__main__":
     ]
     
     for q in example_queries:
-        github_query = iterative_convert_to_search_tags(q)
+        github_query = iterative_convert_to_search_tags(q, industry="Tech") # Example industry
         print("\nGitHub Search Query:")
         print(github_query)

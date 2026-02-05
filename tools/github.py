@@ -84,6 +84,30 @@ async def fetch_repo_documentation(repo_full_name: str, headers: dict, client: h
         doc_text = "# README\n" + readme + doc_text
     return doc_text if doc_text.strip() else "No documentation available."
 
+async def fetch_simple_metadata(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> dict:
+    """
+    Fetches basic count of branches and PRs (by checking list length, limited to 1 page).
+    Strictness: If > 100 (1 page), it will just return 100+, which satisfies 'too many'.
+    """
+    meta = {"branch_count": 0, "pr_count": 0}
+    try:
+        # Branches
+        # We only need to know if it's <= 5. So per_page=6 is enough to test.
+        b_url = f"https://api.github.com/repos/{repo_full_name}/branches?per_page=6"
+        b_resp = await mcp_adapter.fetch(b_url, headers=headers, client=client)
+        if b_resp.status_code == 200:
+            meta["branch_count"] = len(b_resp.json())
+        
+        # PRs
+        # We need to know if < 10. per_page=11 is enough.
+        p_url = f"https://api.github.com/repos/{repo_full_name}/pulls?state=all&per_page=11"
+        p_resp = await mcp_adapter.fetch(p_url, headers=headers, client=client)
+        if p_resp.status_code == 200:
+            meta["pr_count"] = len(p_resp.json())
+    except Exception as e:
+        logger.error(f"Error fetching metadata for {repo_full_name}: {e}")
+    return meta
+
 async def fetch_github_repositories(query: str, max_results: int, per_page: int, headers: dict) -> list:
     url = "https://api.github.com/search/repositories"
     repositories = []
@@ -109,12 +133,30 @@ async def fetch_github_repositories(query: str, max_results: int, per_page: int,
                 for repo in items:
                     full_name = repo.get('full_name', '')
                     tasks.append(asyncio.create_task(fetch_repo_documentation(full_name, headers, client)))
+                    tasks.append(asyncio.create_task(fetch_repo_documentation(full_name, headers, client)))
+                    # Also fetch extra metadata for Personal Project Scoring
+                    # We can fetch contributors count via link header trick or just first page
+                    
                 docs = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                # If we need strict metadata for personal projects, we might fetch it here or later.
+                # To minimize API calls for the broad search, we usually wait. 
+                # But user wants STRICT filtering. We will fetch "branch_count" and "pr_count" ONLY if we are in this flow?
+                # Actually, fetch_github_repositories is generic. 
+                # We can add a specialized fetch later in 'ingest' loop if needed.
+                # For now let's keep this generic and do enrichment in ingest_github_repos_async if needed.
                 for repo, doc in zip(items, docs):
                     repo_link = repo['html_url']
                     full_name = repo.get('full_name', '')
+                    
+                    # Fetching contributors count (approximate via first page size or field if available)
+                    # GitHub API doesn't give total count directly in repo object.
+                    # We will rely on simple approximation or fetch just one page of contributors if critical.
+                    # For now, we will store what we have. A separate step could enable deep fetching.
+                    
                     clone_url = repo.get('clone_url', f"https://github.com/{full_name}.git")
                     star_count = repo.get('stargazers_count', 0)
+                    license_info = repo.get('license') or {}
                     repositories.append({
                         "title": repo.get('name', 'No title available'),
                         "link": repo_link,
@@ -122,7 +164,14 @@ async def fetch_github_repositories(query: str, max_results: int, per_page: int,
                         "combined_doc": doc if not isinstance(doc, Exception) else "",
                         "stars": star_count,
                         "full_name": full_name,
-                        "open_issues_count": repo.get('open_issues_count', 0)
+                        "open_issues_count": repo.get('open_issues_count', 0),
+                        "size": repo.get('size', 0), # Added size
+                        "contributors_count": 1, # Placeholder, will need deep fetch or separate tool to get real count
+                        "file_list": [], # Placeholder for file list (needs recursive tree fetch)
+                        "branch_count": 0, # Placeholder
+                        "pr_count": 0,     # Placeholder, enriched later if Personal Project
+                        "license_name": license_info.get('name', 'Unknown'),
+                        "license_key": license_info.get('key', 'unknown')
                     })
             except Exception as e:
                 logger.error(f"Error fetching repositories for query {query}: {e}")
@@ -146,14 +195,24 @@ async def ingest_github_repos_async(state, config) -> dict:
         else:
             filtered_keywords.append(kw)
     keyword_list = filtered_keywords
-    logger.info(f"Filtered keywords: {keyword_list} | Target language: {target_language}")
+    project_type = getattr(state, "project_type", "All")
+    logger.info(f"Filtered keywords: {keyword_list} | Target language: {target_language} | Project Type: {project_type}")
+    
+    star_filter = ""
+    # Note: User requested 0-50 stars for "Gold" personal projects.
+    # We can widen the search filter slightly (e.g. up to 100) to ensure we get candidates,
+    # then stricter filtering happens in the personal_analysis node.
+    if project_type == "Personal Project":
+        star_filter = " stars:0..100 -topic:template -topic:boilerplate -topic:starter-kit" 
+    elif project_type == "Industry Standard":
+        star_filter = " stars:>5000"
     
     all_repos = []
     from agent import AgentConfiguration
     agent_config = AgentConfiguration.from_runnable_config(config)
     tasks = []
     for keyword in keyword_list:
-        query = f"{keyword} language:{target_language}"
+        query = f"{keyword} language:{target_language}{star_filter}"
         tasks.append(asyncio.create_task(fetch_github_repositories(query, agent_config.max_results, agent_config.per_page, headers)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
@@ -168,6 +227,21 @@ async def ingest_github_repos_async(state, config) -> dict:
             seen.add(repo["full_name"])
             unique_repos.append(repo)
     state.repositories = unique_repos
+    
+    # ENRICHMENT STEP for Personal Projects
+    # If Strict Personal Project, we MUST know branch count and PR count now to filter early.
+    if project_type == "Personal Project":
+        logger.info(f"Enriching {len(unique_repos)} repos with Branch/PR metadata for Strict Filtering...")
+        enrich_tasks = []
+        async with httpx.AsyncClient() as client:
+            for repo in unique_repos:
+                enrich_tasks.append(fetch_simple_metadata(repo["full_name"], headers, client))
+            enrich_results = await asyncio.gather(*enrich_tasks, return_exceptions=True)
+            
+            for repo, meta in zip(unique_repos, enrich_results):
+                if isinstance(meta, dict):
+                    repo.update(meta)
+    
     logger.info(f"Total unique repositories fetched: {len(state.repositories)}")
     return {"repositories": state.repositories}
 

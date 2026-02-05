@@ -23,7 +23,10 @@ from tools.decision_maker import decision_maker
 from tools.code_quality import code_quality_analysis
 from tools.merge_analysis import merge_analysis
 from tools.ranking import multi_factor_ranking
+from tools.merge_analysis import merge_analysis
+from tools.ranking import multi_factor_ranking
 from tools.output_presentation import output_presentation
+from tools.personal_analysis import evaluate_personal_project
 
 # ---------------------------
 # Logging & Environment Setup
@@ -46,6 +49,8 @@ class AgentState:
     user_query: str = field(default="")
     searchable_query: str = field(default="")
     hardware_spec: str = field(default="")               # extracted hardware hint
+    project_type: str = field(default="All")             # "Personal", "Industry", "All"
+    target_industry: str = field(default="")             # e.g. "Finance", "Healthcare"
     repositories: List[Any] = field(default_factory=list)
     semantic_ranked: List[Any] = field(default_factory=list)
     reranked_candidates: List[Any] = field(default_factory=list)
@@ -54,14 +59,18 @@ class AgentState:
     activity_candidates: List[Any] = field(default_factory=list)
     quality_candidates: List[Any] = field(default_factory=list)
     final_ranked: List[Any] = field(default_factory=list)
+    structured_results: List[Any] = field(default_factory=list)
 
 @dataclass(kw_only=True)
 class AgentStateInput:
     user_query: str = field(default="")
+    project_type: str = field(default="All")
+    target_industry: str = field(default="")
 
 @dataclass(kw_only=True)
 class AgentStateOutput:
     final_results: str = field(default="")
+    structured_results: List[Any] = field(default_factory=list)
 
 class AgentConfiguration(BaseModel):
     max_results: int = Field(100, title="Max Results", description="Max GitHub results")
@@ -114,14 +123,52 @@ builder.add_edge("neural_dense_retrieval",  "cross_encoder_reranking")
 builder.add_edge("cross_encoder_reranking", "threshold_filtering")
 
 # **Parallel branches** after filtering:
+# Node Wrapper for Personal Analysis
+def personal_analysis_node(state, config):
+    if state.project_type != "Personal Project":
+        return {}
+    
+    scored_repos = []
+    # We might only want to score the top N candidates or the filtered ones
+    # For now, let's score filtered_candidates
+    candidates = state.filtered_candidates
+    
+    # Needs file list and contributors which we might not have fully fetched yet.
+    # For this iteration, we will use what we have (placeholders) or rely on the tool to fetch more if needed.
+    # In a real heavy implementation, we'd fetch that data here.
+    
+    for repo in candidates:
+        evaluation = evaluate_personal_project(repo, repo.get('combined_doc', ''), repo.get('file_list', []))
+        
+        # Check for rejection (e.g. Template or High Issues)
+        if evaluation.get('rejected', False):
+            logging.info(f"Filtering out {repo.get('title')} from Personal Project search: {evaluation.get('reason')}")
+            continue
+            
+        repo['personal_score'] = evaluation['score']
+        repo['personal_signals'] = evaluation['signals']
+        scored_repos.append(repo)
+    
+    # Sort/Filter based on score
+    # User said: "If >=8 true -> Excellent". We can prioritize these.
+    scored_repos.sort(key=lambda x: x.get('personal_score', 0), reverse=True)
+    
+    # We could replace filtered_candidates with only high scorers, or just pass them through with scores
+    return {"filtered_candidates": scored_repos}
+
+builder.add_node("personal_analysis_node", personal_analysis_node)
+
+# Update Edges to include this step
 builder.add_edge("threshold_filtering",     "dependency_analysis")
 builder.add_edge("threshold_filtering",     "repository_activity_analysis")
 builder.add_edge("threshold_filtering",     "decision_maker")
+builder.add_edge("threshold_filtering",     "personal_analysis_node") # Parallel branch
 
-# Merge the outputs of the three parallel paths:
+# Merge the outputs of the four parallel paths:
 builder.add_edge("dependency_analysis",     "code_quality_analysis")
 builder.add_edge("decision_maker",          "code_quality_analysis")
 builder.add_edge("repository_activity_analysis", "merge_analysis")
+builder.add_edge("personal_analysis_node",  "merge_analysis") # Join back
 builder.add_edge("code_quality_analysis",   "merge_analysis")
 
 builder.add_edge("merge_analysis",          "multi_factor_ranking")

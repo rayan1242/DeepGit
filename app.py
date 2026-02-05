@@ -4,7 +4,11 @@ import json
 import time
 import threading
 import logging
+import subprocess
 from agent import graph  # Your DeepGit langgraph workflow
+from tools.github_actions import clone_and_push_repo
+from tools.resume_generator import generate_resume_bullets
+from tools.feature_recommender import recommend_features
 
 # ---------------------------
 # Set environment variables to prevent thread/multiprocessing issues on macOS/Linux
@@ -178,19 +182,24 @@ def parse_result_to_html(raw_result: str) -> str:
 # ---------------------------
 # Background Workflow Runner
 # ---------------------------
-def run_workflow(topic, result_container):
+def run_workflow(topic, project_type, industry, result_container):
     """Runs the DeepGit workflow and stores the raw result."""
-    initial_state = {"user_query": topic}
+    initial_state = {
+        "user_query": topic,
+        "project_type": project_type,
+        "target_industry": industry
+    }
     result = graph.invoke(initial_state)
     result_container["raw_result"] = result.get("final_results", "No results returned.")
+    result_container["structured_results"] = result.get("structured_results", [])
 
-def stream_workflow(topic):
+def stream_workflow(topic, project_type="All", industry=""):
     # Clear the global log buffer
     with LOG_BUFFER_LOCK:
         LOG_BUFFER.clear()
     result_container = {}
     # Run the workflow in a background thread
-    workflow_thread = threading.Thread(target=run_workflow, args=(topic, result_container))
+    workflow_thread = threading.Thread(target=run_workflow, args=(topic, project_type, industry, result_container))
     workflow_thread.start()
     
     last_index = 0
@@ -204,7 +213,7 @@ def stream_workflow(topic):
             filtered_logs = filter_logs(new_logs)
             status_msg = filtered_logs[-1]
             detail_msg = "<br/>".join(filtered_logs)
-            yield status_msg, detail_msg
+            yield status_msg, detail_msg, []
         time.sleep(0.5)
     
     workflow_thread.join()
@@ -213,8 +222,9 @@ def stream_workflow(topic):
     filtered_final = filter_logs(final_logs)
     final_status = filtered_final[-1] if filtered_final else "Workflow completed."
     raw_result = result_container.get("raw_result", "No results returned.")
+    structured = result_container.get("structured_results", [])
     html_result = parse_result_to_html(raw_result)
-    yield "", html_result
+    yield "", html_result, structured
 
 # ---------------------------
 # App UI Setup
@@ -247,6 +257,19 @@ with gr.Blocks(
             placeholder="Enter your research topic here, e.g., 'Instruction-based fine-tuning for LLaMA 2 using chain-of-thought prompting in Python.' ",
             lines=3
         )
+        with gr.Row():
+            project_type_input = gr.Dropdown(
+                choices=["All", "Personal Project", "Industry Standard"],
+                value="All",
+                label="Project Type",
+                info="Filter by project scale."
+            )
+            industry_input = gr.Textbox(
+                label="Target Industry (Optional)",
+                placeholder="e.g. Finance, Healthcare",
+                info="Tailor search tags to a specific domain."
+            )
+        
         run_button = gr.Button("Run DeepGit", variant="primary")
         # Display the latest log line as status, and full log stream as details.
         status_display = gr.Markdown("")   
@@ -259,26 +282,122 @@ with gr.Blocks(
 
     agree_button.click(fn=enable_main, inputs=[], outputs=[consent_block, main_block], queue=False)
 
-    # Generator-based runner for dynamic log streaming.
-    def stepwise_runner(topic):
-        for status, details in stream_workflow(topic):
-            yield status, details
+    # Action Handlers
+    def on_repo_select(idx, repos):
+        if not repos or idx is None:
+            return ""
+        try:
+            repo = repos[idx]
+            license_str = repo.get('license_name', 'Unknown')
+            return f"Selected: **{repo['title']}** ({repo['link']})\nLicense: **{license_str}**"
+        except IndexError:
+            return "Invalid selection."
 
-    run_button.click(
+    def on_clone_push(idx, target_name, repos):
+        if not repos or idx is None:
+            return "Error: No repo selected."
+        if not target_name:
+            return "Error: Please enter a target repository name."
+        
+        try:
+            repo = repos[idx]
+            source_url = repo['clone_url']
+            token = os.environ.get("GITHUB_API_KEY")
+            if not token:
+                return "Error: GITHUB_API_KEY not found in environment."
+            
+            # License Check
+            allowed_licenses = ['mit', 'apache-2.0', 'bsd-3-clause', 'bsd-2-clause', 'unlicense', 'cc0-1.0']
+            license_key = repo.get('license_key', 'unknown').lower()
+            if license_key not in allowed_licenses:
+                return f"⚠️ **Action Blocked**: This repo has a restricted or unknown license ('{repo.get('license_name')}'). DeepGit only clones permissive open-source code (MIT, Apache, BSD, etc.)."
+
+            new_url = clone_and_push_repo(source_url, target_name, token)
+            return f"✅ Success! Repo cloned and pushed to: [{new_url}]({new_url})"
+        except Exception as e:
+            return f"❌ Error: {str(e)}"
+
+    def on_generate_resume(idx, repos):
+        if not repos or idx is None:
+            return "Error: No repo selected."
+        
+        try:
+            repo = repos[idx]
+            bullets = generate_resume_bullets(repo['title'], "", repo['combined_doc'])
+            return f"### Resume Bullet Points for {repo['title']}\n\n{bullets}"
+        
+        except Exception as e:
+            return f"❌ Error: {str(e)}"
+    
+    def on_recommend_features(idx, repos, query_state):
+        if not repos or idx is None:
+            return "Error: No repo selected."
+        
+        try:
+            repo = repos[idx]
+            # query_state is a dict like {'user_query': '...'}
+            user_query = query_state.get('user_query', '') if isinstance(query_state, dict) else str(query_state)
+            
+            recommendations = recommend_features(repo['title'], repo['combined_doc'], user_query)
+            return f"### Interview Feature Recommendations for {repo['title']}\n\nContext: *{user_query}*\n\n{recommendations}"
+        except Exception as e:
+            return f"❌ Error: {str(e)}"
+
+    def update_dropdown(repos):
+        if not repos:
+            return gr.update(choices=[], value=None)
+        choices = [(f"{r['title']} ({r['stars']} stars)", i) for i, r in enumerate(repos)]
+        return gr.update(choices=choices, value=0, visible=True)
+
+    # UI Wiring
+    with main_block:
+        gr.Markdown("### Actions")
+        with gr.Row():
+            repo_dropdown = gr.Dropdown(label="Select Repository", choices=[], type="value", visible=False)
+            selected_repo_display = gr.Markdown("")
+        
+        repo_dropdown.change(on_repo_select, inputs=[repo_dropdown, state], outputs=[selected_repo_display])
+        
+        with gr.Row():
+            target_name_input = gr.Textbox(label="Target Repo Name (for Fork/Mirror)", placeholder="my-awesome-fork")
+            clone_btn = gr.Button("Clone & Push to GitHub")
+        
+        clone_status = gr.Markdown("")
+        clone_btn.click(on_clone_push, inputs=[repo_dropdown, target_name_input, state], outputs=[clone_status])
+        
+        with gr.Row():
+            resume_btn = gr.Button("Generate Project Description Bullets")
+        
+        resume_output = gr.Markdown("")
+        resume_btn.click(on_generate_resume, inputs=[repo_dropdown, state], outputs=[resume_output])
+
+        with gr.Row():
+            feature_btn = gr.Button("Recommend Features", variant="secondary")
+
+        feature_output = gr.Markdown("")
+        feature_btn.click(on_recommend_features, inputs=[repo_dropdown, state, research_input], outputs=[feature_output])
+
+    def stepwise_runner(topic, p_type, ind):
+        for status, details, structured in stream_workflow(topic, p_type, ind):
+            yield status, details, structured
+
+    run_evt = run_button.click(
         fn=stepwise_runner,
-        inputs=[research_input],
-        outputs=[status_display, detail_display],
+        inputs=[research_input, project_type_input, industry_input],
+        outputs=[status_display, detail_display, state],
         api_name="deepgit",
         show_progress=True
     )
+    run_evt.then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
 
-    research_input.submit(
+    submit_evt = research_input.submit(
         fn=stepwise_runner,
-        inputs=[research_input],
-        outputs=[status_display, detail_display],
+        inputs=[research_input, project_type_input, industry_input],
+        outputs=[status_display, detail_display, state],
         api_name="deepgit_submit",
         show_progress=True
     )
+    submit_evt.then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
 
     gr.HTML(footer)
 demo.queue(max_size=10).launch()
