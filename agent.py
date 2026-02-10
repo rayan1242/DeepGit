@@ -48,6 +48,7 @@ if "GITHUB_API_KEY" not in os.environ:
 class AgentState:
     user_query: str = field(default="")
     searchable_query: str = field(default="")
+    skip_llm_expansion: bool = field(default=False)      # flag to skip query expansion
     hardware_spec: str = field(default="")               # extracted hardware hint
     project_type: str = field(default="All")             # "Personal", "Industry", "All"
     target_industry: str = field(default="")             # e.g. "Finance", "Healthcare"
@@ -64,6 +65,7 @@ class AgentState:
 @dataclass(kw_only=True)
 class AgentStateInput:
     user_query: str = field(default="")
+    skip_llm_expansion: bool = field(default=False)
     project_type: str = field(default="All")
     target_industry: str = field(default="")
 
@@ -73,12 +75,12 @@ class AgentStateOutput:
     structured_results: List[Any] = field(default_factory=list)
 
 class AgentConfiguration(BaseModel):
-    max_results: int = Field(100, title="Max Results", description="Max GitHub results")
-    per_page: int = Field(25, title="Per Page", description="GitHub results per page")
-    dense_retrieval_k: int = Field(100, title="Dense K", description="Top‑K for dense retrieval")
-    cross_encoder_top_n: int = Field(50, title="Cross‑encoder N", description="Top‑N after re‑rank")
+    max_results: int = Field(200, title="Max Results", description="Max GitHub results")
+    per_page: int = Field(30, title="Per Page", description="GitHub results per page")
+    dense_retrieval_k: int = Field(75, title="Dense K", description="Top‑K for dense retrieval")
+    cross_encoder_top_n: int = Field(30, title="Cross‑encoder N", description="Top‑N after re‑rank")
     min_stars: int = Field(50, title="Min Stars", description="Minimum star count")
-    cross_encoder_threshold: float = Field(5.5, title="CE Threshold", description="Cross‑encoder score cutoff")
+    cross_encoder_threshold: float = Field(5.0, title="CE Threshold", description="Cross‑encoder score cutoff")
     sem_model_name: str = Field("all-mpnet-base-v2", title="SentenceTransformer model")
     cross_encoder_model_name: str = Field("cross-encoder/ms-marco-MiniLM-L-6-v2", title="Cross‑encoder model")
 

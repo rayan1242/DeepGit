@@ -20,8 +20,10 @@ def output_presentation(state, config):
 
 def output_presentation(state, config):
     results_str = "\n=== Final Ranked Repositories ===\n"
-    top_n = 10
-    for rank, repo in enumerate(state.final_ranked[:top_n], 1):
+    # User requested ALL results, so we remove the top_n slice
+    ranked_repos = state.final_ranked
+    
+    for rank, repo in enumerate(ranked_repos, 1):
         results_str += f"\nFinal Rank: {rank}\n"
         results_str += f"Title: {repo['title']}\n"
         results_str += f"Link: {repo['link']}\n"
@@ -39,5 +41,5 @@ def output_presentation(state, config):
     # Do not update state.final_ranked here.
     return {
         "final_results": results_str,
-        "structured_results": state.final_ranked[:top_n]
+        "structured_results": ranked_repos # Return all
     }

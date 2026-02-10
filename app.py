@@ -182,24 +182,28 @@ def parse_result_to_html(raw_result: str) -> str:
 # ---------------------------
 # Background Workflow Runner
 # ---------------------------
-def run_workflow(topic, project_type, industry, result_container):
+# ---------------------------
+# Background Workflow Runner
+# ---------------------------
+def run_workflow(topic, project_type, industry, result_container, skip_llm=False):
     """Runs the DeepGit workflow and stores the raw result."""
     initial_state = {
         "user_query": topic,
         "project_type": project_type,
-        "target_industry": industry
+        "target_industry": industry,
+        "skip_llm_expansion": skip_llm
     }
     result = graph.invoke(initial_state)
     result_container["raw_result"] = result.get("final_results", "No results returned.")
     result_container["structured_results"] = result.get("structured_results", [])
 
-def stream_workflow(topic, project_type="All", industry=""):
+def stream_workflow(topic, project_type="All", industry="", skip_llm=False):
     # Clear the global log buffer
     with LOG_BUFFER_LOCK:
         LOG_BUFFER.clear()
     result_container = {}
     # Run the workflow in a background thread
-    workflow_thread = threading.Thread(target=run_workflow, args=(topic, project_type, industry, result_container))
+    workflow_thread = threading.Thread(target=run_workflow, args=(topic, project_type, industry, result_container, skip_llm))
     workflow_thread.start()
     
     last_index = 0
@@ -270,7 +274,9 @@ with gr.Blocks(
                 info="Tailor search tags to a specific domain."
             )
         
-        run_button = gr.Button("Run DeepGit", variant="primary")
+        search_btn = gr.Button("Generate Search Tags", variant="primary")
+        tags_raw_display = gr.Textbox(label="Generated Tags (Raw)", visible=False, interactive=False)
+        tags_radio = gr.Radio(label="Select a Query to Launch DeepGit", visible=False, interactive=True)
         # Display the latest log line as status, and full log stream as details.
         status_display = gr.Markdown("")   
         detail_display = gr.HTML("")
@@ -373,31 +379,48 @@ with gr.Blocks(
 
         with gr.Row():
             feature_btn = gr.Button("Recommend Features", variant="secondary")
-
+        
         feature_output = gr.Markdown("")
         feature_btn.click(on_recommend_features, inputs=[repo_dropdown, state, research_input], outputs=[feature_output])
 
     def stepwise_runner(topic, p_type, ind):
-        for status, details, structured in stream_workflow(topic, p_type, ind):
+        for status, details, structured in stream_workflow(topic, p_type, ind, skip_llm=False):
             yield status, details, structured
 
-    run_evt = run_button.click(
-        fn=stepwise_runner,
-        inputs=[research_input, project_type_input, industry_input],
-        outputs=[status_display, detail_display, state],
-        api_name="deepgit",
-        show_progress=True
-    )
-    run_evt.then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
+    def stepwise_runner_direct_tag(topic, p_type, ind):
+        # Runs with skip_llm=True so we don't re-generate tags
+        for status, details, structured in stream_workflow(topic, p_type, ind, skip_llm=True):
+            yield status, details, structured
 
-    submit_evt = research_input.submit(
-        fn=stepwise_runner,
-        inputs=[research_input, project_type_input, industry_input],
+    from tools.chat import convert_to_search_tags
+
+    def on_generate_tags(topic):
+        try:
+             results = convert_to_search_tags(topic)
+             queries = results.get("queries", [])
+             raw_tags = results.get("tags", [])
+             tags_text = ", ".join(raw_tags)
+             
+             if not queries:
+                  return gr.update(visible=True, choices=["No tags generated."]), gr.update(visible=True, value="None")
+                  
+             return (
+                 gr.update(visible=True, choices=queries, value=None),
+                 gr.update(visible=True, value=tags_text)
+             )
+        except Exception as e:
+             return gr.update(visible=True, choices=[f"Error: {e}"]), gr.update(visible=True, value=f"Error: {e}")
+
+    search_btn.click(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
+    research_input.submit(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
+
+    # Changed: Use stepwise_runner_direct_tag for the radio selection
+    tags_radio.change(
+        fn=stepwise_runner_direct_tag,
+        inputs=[tags_radio, project_type_input, industry_input],
         outputs=[status_display, detail_display, state],
-        api_name="deepgit_submit",
         show_progress=True
-    )
-    submit_evt.then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
+    ).then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
 
     gr.HTML(footer)
 demo.queue(max_size=10).launch()

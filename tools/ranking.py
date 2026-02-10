@@ -21,6 +21,11 @@ def normalize_scores(values):
 
 
 def multi_factor_ranking(state, config):
+    if not state.filtered_candidates:
+        logger.warning("No candidates provided to multi_factor_ranking. Returning empty list.")
+        state.final_ranked = []
+        return {"final_ranked": []}
+
     # Gather raw scores from filtered candidates.
     semantic_scores = [repo.get("semantic_similarity", 0) for repo in state.filtered_candidates]
     cross_encoder_scores = [repo.get("cross_encoder_score", 0) for repo in state.filtered_candidates]

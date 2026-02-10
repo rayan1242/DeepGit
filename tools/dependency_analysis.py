@@ -1,7 +1,6 @@
 # tools/dependency_analysis.py
 import os, logging, httpx, toml, base64
 from functools import lru_cache
-from tools.chat import chain     
 
 logger = logging.getLogger(__name__)
 

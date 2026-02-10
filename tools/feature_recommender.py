@@ -27,23 +27,28 @@ def recommend_features(repo_name: str, readme_content: str, user_query: str) -> 
 
     prompt_template = """
     You are a Senior Engineering Manager & Interviewer at a top-tier tech company.
-    A candidate is proposing to use the following open-source repository as a base for their portfolio/interview project.
+    A candidate is applying for the following role/company (described in the Job Description below):
     
-    The candidate's target role/domain is implied by their search query: "{user_query}"
+    === JOB DESCRIPTION (CONTEXT) ===
+    {user_query}
+    ===============================
     
-    Repository: {repo_name}
+    The candidate wants to use this Repository as a base for their portfolio project to impress the interviewers:
+    
+    === REPOSITORY: {repo_name} ===
     Current Capabilities (from README):
     {readme_snippet}
+    ===============================
     
     Your Task:
-    Recommend exactly 3 "Star Features" the candidate should implement *on top* of this repo to demonstrate seniority and alignment with the target domain.
-    The features should solve a business problem relevant to "{user_query}".
+    Recommend exactly 3 "Killer Features" the candidate should implement *on top* of this repo to bridge the gap between the repo's current state and the Job Description's requirements.
+    Focus on adding sophisticated tech stack elements mentioned in the JD (e.g., if JD mentions Kafka/AWS/Docker and repo lacks them, suggest adding them).
     
     Format your response exactly as follows for each feature:
     
     ### 1. [Feature Name]
-    **Why**: [One sentence on business impact/relevance to the JD]
-    **How**: [Technical implementation details: e.g. "Add a Redis cache layer...", "Integrate Kafka consumer...", "Add SHAP explainability..."]
+    **Why**: [Explains how this demonstrates a specific skill required by the company]
+    **How**: [Technical implementation details: e.g. "Wrap the script in a Docker container...", "Replace the in-memory processed with a Redis queue..."]
     
     ### 2. [Feature Name]
     ...

@@ -5,29 +5,39 @@ logger = logging.getLogger(__name__)
 
 def threshold_filtering(state, config):
     """
-    1) Filters out repos with too few stars AND too-low cross-encoder scores.
-    2) If the user specified hardware constraints (state.hardware_spec),
-       narrows down to state.hardware_filtered (populated in dependency_analysis).
+    Filters repos based primarily on semantic relevance.
+    
+    Key philosophy:
+    - Stars are NOT a hard filter (low stars ≠ bad project)
+    - Cross-encoder score is the main quality gate
+    - Hardware constraints (if any) are applied last
     """
-    # Import config schema lazily to avoid circular dependency
+
+    # Import config lazily to avoid circular deps
     from agent import AgentConfiguration
     agent_config = AgentConfiguration.from_runnable_config(config)
 
-    # 1) Basic star + cross-encoder cutoff
     filtered = []
+
     for repo in state.reranked_candidates:
-        stars = repo.get("stars", 0)
         ce_score = repo.get("cross_encoder_score", 0.0)
-        # drop only if BOTH the star count AND cross-encoder score are too low
-        if stars < agent_config.min_stars and ce_score < agent_config.cross_encoder_threshold:
+
+        # ✅ ONLY filter on semantic quality
+        if ce_score < agent_config.cross_encoder_threshold:
             continue
+
+        # ⭐ stars are kept as metadata / ranking signal only
         filtered.append(repo)
 
-    # if nothing passes, keep all reranked candidates
+    # Safety net: if everything was filtered out, keep all
     if not filtered:
+        logger.warning(
+            "All candidates filtered out by cross-encoder threshold; "
+            "falling back to full reranked list."
+        )
         filtered = list(state.reranked_candidates)
 
-    # 2) Apply hardware filter if specified by user
+    # 2) Optional hardware filtering
     if getattr(state, "hardware_spec", None):
         hw_filtered = getattr(state, "hardware_filtered", None)
         if hw_filtered:
@@ -39,8 +49,10 @@ def threshold_filtering(state, config):
             )
 
     state.filtered_candidates = filtered
+
     logger.info(
         f"Filtering complete: {len(filtered)} candidates remain "
-        f"(after thresholds{' + hardware filter' if state.hardware_spec else ''})."
+        f"(semantic threshold{' + hardware filter' if state.hardware_spec else ''})."
     )
+
     return {"filtered_candidates": filtered}

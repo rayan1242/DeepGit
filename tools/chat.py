@@ -1,160 +1,203 @@
-import os
+import logging
 import re
+from pathlib import Path
+from typing import List
+import itertools
+import random
+from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from dotenv import load_dotenv
-from pathlib import Path
 
-# Load environment variables
+# --- Setup logging ---
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# --- Load .env ---
 dotenv_path = Path(__file__).resolve().parent.parent / ".env"
 if dotenv_path.exists():
     load_dotenv(dotenv_path)
 
-# Step 1: Instantiate the Groq model with appropriate settings.
+# --- Initialize LLM ---
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
-    temperature=0.3,
-    max_tokens=512,
-    max_retries=3,
+    temperature=0.0,
+    max_tokens=600,
 )
 
-# Step 2: Build the prompt with enhanced instructions for iterative thinking and target language detection.
-prompt = ChatPromptTemplate.from_messages([
-    ("system", 
-     """You are a GitHub search optimization expert.
-
-Your job is to:
-1. Read a user's query about tools, research, or tasks.
-2. Detect if the query mentions a specific programming language other than Python (for example, JavaScript or JS). If so, record that language as the target language.
-3. Think iteratively and generate your internal chain-of-thought enclosed in <think> ... </think> tags.
-4. After your internal reasoning, output up to five GitHub-style search tags or library names that maximize repository discovery.
-   Use as many tags as necessary based on the query's complexity, but never more than five.
-5. If you detected a non-Python target language, append an additional tag at the end in the format target-[language] (e.g., target-javascript).
-   If no specific language is mentioned, do not include any target tag.
-   
-Output Format:
-tag1:tag2[:tag3[:tag4[:tag5[:target-language]]]]
-
-Rules:
-- Use lowercase and hyphenated keywords (e.g., image-augmentation, chain-of-thought).
-- Use terms commonly found in GitHub repo names, topics, or descriptions.
-- Avoid generic terms like "python", "ai", "tool", "project".
-- Do NOT use full phrases or vague words like "no-code", "framework", or "approach".
-- Prefer real tools, popular methods, or dataset names when mentioned.
-- If your output does not strictly match the required format, correct it after your internal reasoning.
-- Choose high-signal keywords to ensure the search yields the most relevant GitHub repositories.
-
-Excellent Examples:
-
-Input: "No code tool to augment image and annotation"
-Output: image-augmentation:albumentations
-
-Input: "Open-source tool for labeling datasets with UI"
-Output: label-studio:streamlit
-
-Input: "Visual reasoning models trained on multi-modal datasets"
-Output: multimodal-reasoning:vlm
-
-Input: "I want repos related to instruction-based finetuning for LLaMA 2"
-Output: instruction-tuning:llama2
-
-Input: "Repos around chain of thought prompting mainly for finetuned models"
-Output: chain-of-thought:finetuned-llm
-
-Input: "I want to fine-tune Gemini 1.5 Flash model"
-Output: gemini-finetuning:flash002
-
-Input: "Need repos for document parsing with vision-language models"
-Output: document-understanding:vlm
-
-Input: "How to train custom object detection models using YOLO"
-Output: object-detection:yolov5
-
-Input: "Segment anything-like models for interactive segmentation"
-Output: interactive-segmentation:segment-anything
-
-Input: "Synthetic data generation for vision model training"
-Output: synthetic-data:image-augmentation
-
-Input: "OCR pipeline for scanned documents"
-Output: ocr:document-processing
-
-Input: "LLMs with self-reflection or reasoning chains"
-Output: self-reflection:chain-of-thought
-
-Input: "Chatbot development using open-source LLMs"
-Output: chatbot:llm
-
-Input: "Deep learning-based object detection with YOLO and transformer architecture"
-Output: object-detection:yolov5:transformer
-
-Input: "Semantic segmentation for medical images using UNet with attention mechanism"
-Output: semantic-segmentation:unet:attention
-
-Input: "Find repositories implementing data augmentation pipelines in JavaScript"
-Output: data-augmentation:target-javascript
-
-Output must be ONLY the search tags separated by colons. Do not include any extra text, bullet points, or explanations.
-"""),
-    ("human", "Query: {query}\nTarget Industry: {industry}")
+# --- 1. Extract Company & Role ---
+extract_prompt = ChatPromptTemplate.from_messages([
+    ("system", "Extract Company Name and Job Role from the JD. Output JSON only: {{\"company\": \"...\", \"role\": \"...\"}}"),
+    ("human", "{jd_text}")
 ])
+extract_chain = extract_prompt | llm
 
-# Step 3: Chain the prompt with the LLM.
-chain = prompt | llm
+def extract_company_role(jd_text: str):
+    try:
+        resp = extract_chain.invoke({"jd_text": jd_text}).content
+        match = re.search(r"\{.*\}", resp, re.DOTALL)
+        if match:
+            import json
+            data = json.loads(match.group())
+            return data.get("company", "Unknown"), data.get("role", "Engineer")
+    except Exception as e:
+        logger.warning(f"Extraction error: {e}")
+    return "Unknown", "Engineer"
 
-# Step 4: Define a function to parse the final search tags from the model's response.
-def parse_search_tags(response: str) -> str:
-    """
-    Removes any internal commentary enclosed in <think> ... </think> tags
-    and returns only the final searchable tags.
-    """
-    if "<think>" in response and "</think>" in response:
-        end_index = response.index("</think>") + len("</think>")
-        tags = response[end_index:].strip()
-        return tags
-    else:
-        return response.strip()
+# --- 2. Tech Stack Research ---
+from duckduckgo_search import DDGS
 
-# Step 5: Helper function to validate the output tags format using regex.
-def valid_tags(tags: str) -> bool:
-    """
-    Validates that the output is one to six colon-separated tokens composed of lowercase letters, numbers, and hyphens.
-    This allows up to five search tags and optionally one target tag.
-    """
-    pattern = r'^[a-z0-9-]+(?::[a-z0-9-]+){0,5}$'
-    return re.match(pattern, tags) is not None
+def get_company_tech_stack(company: str) -> str:
+    """Fetch tech stack info using DuckDuckGo."""
+    if not company or company == "Unknown":
+        return ""
+    try:
+        logger.info(f"Searching tech stack for {company}...")
+        with DDGS() as ddgs:
+            # Search for engineering blog or tech stack
+            query = f"{company} engineering blog tech stack aws machine learning software tools"
+            results = list(ddgs.text(query, max_results=3))
+            if results:
+                summary = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
+                logger.info(f"Found tech stack info: {summary[:100]}...")
+                return summary
+    except Exception as e:
+        logger.warning(f"DDG Search failed: {e}")
+    return ""
 
-# Step 6: Define an iterative conversion function that refines the output if needed.
-def iterative_convert_to_search_tags(query: str, industry: str = "", max_iterations: int = 2) -> str:
-    print(f"\n[iterative_convert_to_search_tags] Input Query: {query} | Industry: {industry}")
-    refined_query = query
-    for iteration in range(max_iterations):
-        print(f"\nIteration {iteration+1}")
-        response = chain.invoke({"query": refined_query, "industry": industry})
-        full_output = response.content.strip()
-        tags_output = parse_search_tags(full_output)
-        print(f"Output Tags: {tags_output}")
-        if valid_tags(tags_output):
-            print("Valid tags format detected.")
-            return tags_output
-        else:
-            print("Invalid tags format. Requesting refinement...")
-            refined_query = f"{query}\nPlease refine your answer so that the output strictly matches the format: tag1:tag2[:tag3[:tag4[:tag5[:target-language]]]]."
-    print("Final output (may be invalid):", tags_output)
-    return tags_output
+# --- 3. Generate Tag Pool ---
+tag_prompt = ChatPromptTemplate.from_messages([
+    ("system", """
+You are a GitHub tag generation engine.
 
-# Example usage
-if __name__ == "__main__":
-    # Example queries for testing:
-    example_queries = [
-        "I am looking for repositories for data augmentation pipelines for fine-tuning LLMs",  # Default (Python)
-        "Find repositories implementing data augmentation pipelines in JavaScript",          # Should return target-javascript
-        "Searching for tools for instruction-based finetuning for LLaMA 2",                   # Default (Python)
-        "Looking for open-source libraries for object detection using YOLO",                 # Default (Python)
-        "Repos implementing chatbots in JavaScript with self-reflection capabilities"         # Should return target-javascript
-    ]
+Given a company, role, job description, and EXTERNAL TECH STACK INFO:
+- Analyze what specific tools/frameworks the company actually uses (e.g. 'kafka', 'kubernetes', 'react', 'tensorflow') based on the tech stack info.
+- Generate 30 HIGH-SIGNAL GitHub tags
+- Mix business domain + architecture + infra + languages + SPECIFIC TOOLS
+- PRIORITIZE standard, existing GitHub topics (e.g., 'machine-learning', 'fintech', 'insurance', 'e-commerce')
+- CRITICAL: Business domain in 3-4 tags MUST be single words if possible (e.g. 'healthcare' NOT 'healthcare-domain')
+- AVOID generic suffixes like '-domain', '-tool', '-platform', '-system' unless standard
+- Use lowercase, hyphenated GitHub-style topics
+- Do not include company name in tags
+- NO explanations
+- NO categorization
+- ONE tag per line
+"""),
+    ("human", """
+Company: {company}
+Role: {role}
+
+Job Description:
+{jd_text}
+
+External Tech Stack Info (Use this to infer tools):
+{tech_stack}
+""")
+])
+tag_chain = tag_prompt | llm
+
+def generate_tag_pool(jd_text: str, company: str, role: str) -> List[str]:
+    logger.info(f"Generating tags for {company} - {role}...")
     
-    for q in example_queries:
-        github_query = iterative_convert_to_search_tags(q, industry="Tech") # Example industry
-        print("\nGitHub Search Query:")
-        print(github_query)
+    # Fetch external info
+    tech_stack = get_company_tech_stack(company)
+    
+    resp = tag_chain.invoke({
+        "company": company,
+        "role": role,
+        "jd_text": jd_text,
+        "tech_stack": tech_stack
+    }).content
+
+    tags = []
+    for line in resp.splitlines():
+        line = line.strip().lower()
+        if not line: continue
+        
+        # Remove leader bullets/numbers
+        line = re.sub(r"^[-*•0-9.]+\s*", "", line)
+        
+        # Keep only valid chars (a-z, 0-9, space, hyphen)
+        line = re.sub(r"[^a-z0-9\s\-]+", "", line)
+        line = line.strip()
+        
+        # Convert spaces to hyphens
+        line = re.sub(r"\s+", "-", line)
+        
+        # Strict Filtering:
+        # - Min length 3, Max length 40 (avoids sentences)
+        # - Max 3 hyphens (avoids "cloud-software-and-ai-technology...")
+        if len(line) < 3 or len(line) > 40:
+            continue
+        if line.count("-") > 3:
+            continue
+            
+        tags.append(line)
+
+    unique_tags = list(dict.fromkeys(tags))  # dedupe
+    logger.info(f"Extracted {len(unique_tags)} tags: {unique_tags}")
+    return unique_tags
+
+# --- 3. Generate 1-2 tag queries ---
+def generate_queries_from_tags(tags: list, max_queries: int = 300):
+    single_tags = sorted(list(set(tags)))
+    double_combos = set()
+    
+    # 2. Double tags (High precision)
+    for combo in itertools.combinations(tags, 2):
+        double_combos.add(" ".join(combo))
+        
+    double_tags = list(double_combos)
+    random.shuffle(double_tags)
+    
+    # Prioritize single tags at the top
+    final_queries = single_tags + double_tags
+    
+    return final_queries[:max_queries]
+
+# --- 4. Utility function ---
+def convert_to_search_tags(jd_text: str):
+    company, role = extract_company_role(jd_text)
+    tags = generate_tag_pool(jd_text, company, role)
+    queries = generate_queries_from_tags(tags, max_queries=100)
+    return {
+        "company": company,
+        "role": role,
+        "tags": tags,
+        "queries": queries
+    }
+
+# --- 5. Example usage ---
+if __name__ == "__main__":
+    sample_jd = """
+Job Title: Data Scientist
+Company: CCC Intelligent Solutions
+Location: Chicago, IL, USA
+
+About Us:
+CCC Intelligent Solutions is a leading cloud software and AI technology provider for the insurance economy, empowering insurers, repairers, automakers, and partners with intelligent analytics and predictive solutions.
+
+Responsibilities:
+- Design and implement machine learning and AI models for cost prediction, impact modeling, and consumer applications.
+- Convert research models into scalable production software.
+- Collaborate with software engineers and product teams to integrate models into products.
+- Use frameworks such as TensorFlow and PyTorch for model training and deployment.
+- Utilize cloud services (e.g., AWS) and containerization (Docker, Kubernetes).
+- Validate and optimize model performance; communicate insights to stakeholders.
+
+Requirements:
+- Master’s degree in Computer Science, AI, or related field.
+- Proficiency in Python, SQL, and ML frameworks.
+- Experience with cloud platforms and machine learning algorithms.
+- Strong analytical skills and familiarity with statistical modeling.
+- Knowledge of auto insurance domain preferred.
+
+Salary Range: Competitive, typically mid‑100k to 200k+ based on experience and level.
+"""
+    results = convert_to_search_tags(sample_jd)
+    print("\n--- Company & Role ---")
+    print(results["company"], "|", results["role"])
+    print("\n--- Generated Tags ---")
+    print(results["tags"])
+    print("\n--- Search Queries (2-3 tags each) ---")
+    for q in results["queries"]:
+        print(q)

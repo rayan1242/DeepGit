@@ -46,6 +46,9 @@ def cross_encoder_reranking(state, config):
                 candidate["cross_encoder_score"] = 0.0
         
         # Postprocessing: Shift all scores upward if any are negative.
+        if not candidates:
+            logger.warning("No candidates to rerank. Returning empty list.")
+            return []
         all_scores = [candidate["cross_encoder_score"] for candidate in candidates]
         min_score = min(all_scores)
         if min_score < 0:
