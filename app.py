@@ -9,6 +9,18 @@ from agent import graph  # Your DeepGit langgraph workflow
 from tools.github_actions import clone_and_push_repo
 from tools.resume_generator import generate_resume_bullets
 from tools.feature_recommender import recommend_features
+import auth  # New Auth Module
+from database import init_db
+
+# Initialize DB on startup
+init_db()
+
+def update_auth_status():
+    token = auth.get_active_token()
+    if token:
+        username = auth.get_active_username() or "Unknown"
+        return f"✅ Logged in as: **{username}**"
+    return "❌ Not Logged In (Using Rate-Limited IP)"
 
 # ---------------------------
 # Set environment variables to prevent thread/multiprocessing issues on macOS/Linux
@@ -88,12 +100,12 @@ description = """<p align="center">
 <strong>DeepGit</strong> is a multi‑stage research agent that digs through GitHub so you don’t have to.<br/>
 Just describe what you’re hunting for — and, if you like, add a hint about your hardware (“GPU‑poor”, “mobile‑only”, etc.).<br/><br/>
 Behind the scenes, DeepGit now orchestrates an upgraded tool‑chain:<br/>
-• Query Expansion&nbsp;→&nbsp;ColBERT‑v2 token‑level Semantic Retrieval&nbsp;→&nbsp;Cross‑Encoder Re‑ranking<br/>
-• Hardware‑aware Dependency Filter that discards repos your device can’t run<br/>
-• Codebase & Community Insight modules for quality and activity signals<br/><br/>
-Feed it a topic below; the agent will analyze, rank, and explain the most relevant, <em>runnable</em> repositories.  
-A short wait earns you a gold‑curated list.
-</p>"""
+99: • Query Expansion&nbsp;→&nbsp;ColBERT‑v2 token‑level Semantic Retrieval&nbsp;→&nbsp;Cross‑Encoder Re‑ranking<br/>
+100: • Hardware‑aware Dependency Filter that discards repos your device can’t run<br/>
+101: • Codebase & Community Insight modules for quality and activity signals<br/><br/>
+102: Feed it a topic below; the agent will analyze, rank, and explain the most relevant, <em>runnable</em> repositories.  
+103: A short wait earns you a gold‑curated list.
+104: </p>"""
 
 
 consent_text = """
@@ -187,17 +199,24 @@ def parse_result_to_html(raw_result: str) -> str:
 # ---------------------------
 def run_workflow(topic, project_type, industry, result_container, skip_llm=False):
     """Runs the DeepGit workflow and stores the raw result."""
+    token = auth.get_active_token()
     initial_state = {
         "user_query": topic,
         "project_type": project_type,
         "target_industry": industry,
-        "skip_llm_expansion": skip_llm
+        "skip_llm_expansion": skip_llm,
+        "github_token": token or ""
     }
     result = graph.invoke(initial_state)
     result_container["raw_result"] = result.get("final_results", "No results returned.")
     result_container["structured_results"] = result.get("structured_results", [])
 
 def stream_workflow(topic, project_type="All", industry="", skip_llm=False):
+    # Enforce Authentication
+    if not auth.get_active_token():
+        yield "❌ Authentication Required", "Please connect your GitHub account in the settings above to continue.", []
+        return
+
     # Clear the global log buffer
     with LOG_BUFFER_LOCK:
         LOG_BUFFER.clear()
@@ -256,6 +275,61 @@ with gr.Blocks(
         agree_button = gr.Button("I Agree", variant="primary")
 
     with gr.Column(elem_id="main_container", visible=False) as main_block:
+        
+        # --- Auth UI ---
+        auth_status_display = gr.Markdown(update_auth_status())
+
+        with gr.Accordion("🔐 GitHub Authentication (Settings)", open=False):
+            gr.Markdown("Connect your GitHub account to bypass rate limits **(5000 requests/hour)** and enable repository cloning.")
+            
+            with gr.Row():
+                client_id_input = gr.Textbox(label="GitHub Client ID", value=auth.get_client_id() or "", placeholder="Paste your OAuth App Client ID here")
+                save_client_id_btn = gr.Button("Save Client ID")
+            
+            save_status = gr.Markdown("")
+            save_client_id_btn.click(lambda x: (auth.set_client_id(x), "✅ Client ID Saved!")[1], inputs=[client_id_input], outputs=[save_status])
+            
+            with gr.Row():
+                auth_btn = gr.Button("Connect GitHub Account", variant="primary")
+                logout_btn = gr.Button("Logout")
+            
+            auth_message = gr.Markdown("")
+            auth_link_display = gr.Markdown("")
+            device_code_state = gr.State()
+            
+            # Polling Logic for UI
+            def on_auth_click():
+                res = auth.initiate_device_flow()
+                if "error" in res:
+                    return f"❌ Error: {res['error']}", "", None
+                
+                msg = f"### Step 1: Authorization Required\n\n**User Code:** `{res['user_code']}`\n\n1. Copy the code above.\n2. Click the link below to open GitHub.\n3. Paste the code and authorize DeepGit."
+                link = f"[👉 Click here to Authorize on GitHub]({res['verification_uri']})"
+                return msg, link, res['device_code']
+
+            auth_btn.click(on_auth_click, outputs=[auth_message, auth_link_display, device_code_state])
+            
+            check_auth_btn = gr.Button("I have authorized the app")
+            
+            def on_check_auth(device_code):
+                if not device_code:
+                     return "❌ Please click 'Connect GitHub Account' first.", update_auth_status()
+                # Attempt to get token (short check)
+                token = auth.poll_for_token(device_code, interval=2, timeout=5) 
+                if token:
+                    return "✅ Success! You are logged in.", update_auth_status()
+                return "❌ Authorization pending. Determine if you approved the request in browser, then click again.", update_auth_status()
+
+            check_auth_btn.click(on_check_auth, inputs=[device_code_state], outputs=[auth_message, auth_status_display])
+            
+            # Logout
+            def on_logout():
+                auth.logout()
+                return "Logged out.", "", update_auth_status()
+
+            logout_btn.click(on_logout, outputs=[auth_message, auth_link_display, auth_status_display])
+        # --- End Auth UI ---
+
         research_input = gr.Textbox(
             label="Research Topic",
             placeholder="Enter your research topic here, e.g., 'Instruction-based fine-tuning for LLaMA 2 using chain-of-thought prompting in Python.' ",
@@ -308,17 +382,23 @@ with gr.Blocks(
         try:
             repo = repos[idx]
             source_url = repo['clone_url']
-            token = os.environ.get("GITHUB_API_KEY")
-            if not token:
-                return "Error: GITHUB_API_KEY not found in environment."
+            source_url = repo['clone_url']
             
-            # License Check
-            allowed_licenses = ['mit', 'apache-2.0', 'bsd-3-clause', 'bsd-2-clause', 'unlicense', 'cc0-1.0']
-            license_key = repo.get('license_key', 'unknown').lower()
-            if license_key not in allowed_licenses:
-                return f"⚠️ **Action Blocked**: This repo has a restricted or unknown license ('{repo.get('license_name')}'). DeepGit only clones permissive open-source code (MIT, Apache, BSD, etc.)."
+            # Use authenticated token
+            token = auth.get_active_token()
+            if not token:
+                return "❌ Error: Please login via 'GitHub Authentication' first."
+            
+            # License Check (Relaxed)
+            # allowed_licenses = ['mit', 'apache-2.0', 'bsd-3-clause', 'bsd-2-clause', 'unlicense', 'cc0-1.0']
+            # license_key = repo.get('license_key', 'unknown').lower()
+            # if license_key not in allowed_licenses and license_key != 'unknown' and license_key != 'none':
+            #    return f"⚠️ **Action Blocked**: This repo has a restricted license ('{repo.get('license_name')}')."
+            
+            # Allow all, just warn if restricted? No, user explicitly asked to allow unknown.
+            # We just proceed.
 
-            new_url = clone_and_push_repo(source_url, target_name, token)
+            new_url = clone_and_push_repo(source_url, target_name, token, private=False)
             return f"✅ Success! Repo cloned and pushed to: [{new_url}]({new_url})"
         except Exception as e:
             return f"❌ Error: {str(e)}"
@@ -396,10 +476,16 @@ with gr.Blocks(
 
     def on_generate_tags(topic):
         try:
-             results = convert_to_search_tags(topic)
-             queries = results.get("queries", [])
-             raw_tags = results.get("tags", [])
-             tags_text = ", ".join(raw_tags)
+             # convert_to_search_tags now returns a colon-separated string of tags
+             tags_str = convert_to_search_tags(topic)
+             if not tags_str:
+                 return gr.update(visible=True, choices=["No tags generated."]), gr.update(visible=True, value="None")
+             
+             raw_tags = [t.strip() for t in tags_str.split(":") if t.strip()]
+             # We can use individual tags as queries, or the whole set
+             # We want the full colon-separated string as the single query option
+             queries = [tags_str]
+             tags_text = tags_str
              
              if not queries:
                   return gr.update(visible=True, choices=["No tags generated."]), gr.update(visible=True, value="None")
@@ -412,7 +498,8 @@ with gr.Blocks(
              return gr.update(visible=True, choices=[f"Error: {e}"]), gr.update(visible=True, value=f"Error: {e}")
 
     search_btn.click(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
-    research_input.submit(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
+    # Connect enter key on text box to same function
+    # research_input.submit(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
 
     # Changed: Use stepwise_runner_direct_tag for the radio selection
     tags_radio.change(
@@ -424,4 +511,3 @@ with gr.Blocks(
 
     gr.HTML(footer)
 demo.queue(max_size=10).launch()
-

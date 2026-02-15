@@ -44,6 +44,15 @@ def merge_analysis(state, config):
         # Re-filter just in case
          merged_list = [r for r in merged_list if r["full_name"] in allowed_full_names]
 
+    # Enforce hardware constraints if applied
+    hw_candidates = getattr(state, "hardware_filtered", None)
+    if hw_candidates is not None:
+        hw_names = {r["full_name"] for r in hw_candidates}
+        original_count = len(merged_list)
+        merged_list = [r for r in merged_list if r["full_name"] in hw_names]
+        if len(merged_list) < original_count:
+            logger.info(f"Hardware filter removed {original_count - len(merged_list)} candidates in merge_analysis.")
+
     state.filtered_candidates = merged_list
     logger.info(f"Merged analysis results: {len(merged_list)} candidates.")
     return {"filtered_candidates": merged_list}

@@ -91,8 +91,11 @@ async def code_quality_analysis_async(state, config) -> dict:
         state.quality_candidates = []
         return {"quality_candidates": state.quality_candidates}
 
+    # Respect hardware filtering if it exists
+    candidates = getattr(state, "hardware_filtered", None) or state.filtered_candidates
+
     tasks = []
-    for repo in state.filtered_candidates:
+    for repo in candidates:
         if "clone_url" not in repo:
             repo["clone_url"] = f"https://github.com/{repo['full_name']}.git"
         tasks.append(analyze_code_quality_async(repo))

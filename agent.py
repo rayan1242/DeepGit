@@ -61,6 +61,7 @@ class AgentState:
     quality_candidates: List[Any] = field(default_factory=list)
     final_ranked: List[Any] = field(default_factory=list)
     structured_results: List[Any] = field(default_factory=list)
+    github_token: str = field(default="")
 
 @dataclass(kw_only=True)
 class AgentStateInput:
@@ -68,6 +69,7 @@ class AgentStateInput:
     skip_llm_expansion: bool = field(default=False)
     project_type: str = field(default="All")
     target_industry: str = field(default="")
+    github_token: str = field(default="")
 
 @dataclass(kw_only=True)
 class AgentStateOutput:
@@ -75,8 +77,8 @@ class AgentStateOutput:
     structured_results: List[Any] = field(default_factory=list)
 
 class AgentConfiguration(BaseModel):
-    max_results: int = Field(200, title="Max Results", description="Max GitHub results")
-    per_page: int = Field(30, title="Per Page", description="GitHub results per page")
+    max_results: int = Field(500, title="Max Results", description="Max GitHub results")
+    per_page: int = Field(100, title="Per Page", description="GitHub results per page")
     dense_retrieval_k: int = Field(75, title="Dense K", description="Top‑K for dense retrieval")
     cross_encoder_top_n: int = Field(30, title="Cross‑encoder N", description="Top‑N after re‑rank")
     min_stars: int = Field(50, title="Min Stars", description="Minimum star count")

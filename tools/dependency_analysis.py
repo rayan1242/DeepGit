@@ -1,8 +1,18 @@
 # tools/dependency_analysis.py
 import os, logging, httpx, toml, base64
 from functools import lru_cache
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
+
+# --- Setup LLM ---
+llm = ChatGroq(
+    model="llama-3.1-8b-instant",
+    temperature=0.0,
+    max_tokens=64,
+)
+chain = ChatPromptTemplate.from_messages([("human", "{query}")]) | llm
 
 QUESTION_TMPL = (
     "Given the following dependency list, can this project run on {hw}? "

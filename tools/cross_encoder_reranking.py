@@ -45,6 +45,33 @@ def cross_encoder_reranking(state, config):
                 logger.error(f"Error scoring candidate {candidate.get('full_name', 'unknown')}: {e}")
                 candidate["cross_encoder_score"] = 0.0
         
+        # Adjust scores based on documentation size (Boost & Penalty)
+        import math
+        LOW_DOC_THRESHOLD = 400 # approx 5-6 lines of text plus headers
+        
+        for candidate in candidates:
+            r_size = candidate.get("readme_size", 0)
+            a_size = candidate.get("arch_size", 0)
+            
+            # 1. Logarithmic boosting for content presence
+            # 1KB -> ~1.5 boost magnitude per field with factor 0.5
+            boost = 0.5 * (math.log10(r_size + 1) + math.log10(a_size + 1))
+            
+            # 2. Penalty for sparse documentation
+            # Condition: Small README AND (No Arch OR Small Arch)
+            penalty = 0.0
+            if r_size < LOW_DOC_THRESHOLD:
+                if a_size < LOW_DOC_THRESHOLD:
+                    # Penalize heavily if both are missing/scant (approx 2-3 lines or less)
+                    penalty = 5.0
+            
+            original_score = candidate["cross_encoder_score"]
+            candidate["cross_encoder_score"] = original_score + boost - penalty
+            
+            # Log significant adjustments
+            if abs(boost - penalty) > 0.1:
+                 logger.info(f"Docs Score Adj for {candidate.get('full_name')}: {original_score:.3f} -> {candidate['cross_encoder_score']:.3f} (Boost:{boost:.2f}, Penalty:{penalty:.2f}, R:{r_size}, A:{a_size})")
+        
         # Postprocessing: Shift all scores upward if any are negative.
         if not candidates:
             logger.warning("No candidates to rerank. Returning empty list.")

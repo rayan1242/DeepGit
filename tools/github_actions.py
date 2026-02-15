@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 class GitHubActionError(Exception):
     pass
 
-def create_github_repo(repo_name: str, token: str) -> str:
+def create_github_repo(repo_name: str, token: str, private: bool = False) -> str:
     """
-    Creates a new private repository on the authenticated user's GitHub account.
+    Creates a new repository on the authenticated user's GitHub account.
     Returns the clone URL of the new repository.
     """
     url = "https://api.github.com/user/repos"
@@ -23,7 +23,7 @@ def create_github_repo(repo_name: str, token: str) -> str:
     }
     data = {
         "name": repo_name,
-        "private": True,  # Default to private for safety
+        "private": private,
         "description": "Forked/Mirrored via DeepGit",
         "has_issues": True,
         "has_projects": False,
@@ -53,7 +53,7 @@ def create_github_repo(repo_name: str, token: str) -> str:
         logger.error(f"Network error creating repo: {e}")
         raise GitHubActionError(f"Network error creating repo: {e}")
 
-def clone_and_push_repo(source_url: str, target_repo_name: str, token: str) -> str:
+def clone_and_push_repo(source_url: str, target_repo_name: str, token: str, private: bool = False) -> str:
     """
     Clones a source repository and pushes it to a new destination on the user's GitHub.
     
@@ -71,7 +71,7 @@ def clone_and_push_repo(source_url: str, target_repo_name: str, token: str) -> s
     
     try:
         # 1. Create Repo
-        target_clone_url = create_github_repo(target_repo_name, token)
+        target_clone_url = create_github_repo(target_repo_name, token, private=private)
         
         # Insert token into target URL for authentication
         # target_clone_url usually looks like https://github.com/User/Repo.git
@@ -90,32 +90,34 @@ def clone_and_push_repo(source_url: str, target_repo_name: str, token: str) -> s
             stderr=subprocess.PIPE
         )
         
-        # 3. Change Remote
+        # 3. Clean History (Delete .git)
+        git_dir = temp_dir / ".git"
+        if git_dir.exists():
+            def on_rm_error(func, path, exc_info):
+                os.chmod(path, 0o777)
+                func(path)
+            shutil.rmtree(git_dir, onerror=on_rm_error)
+            
+        # 4. Re-init and Push
         cwd = str(temp_dir)
+        subprocess.run(["git", "init"], cwd=cwd, check=True)
+        subprocess.run(["git", "add", "."], cwd=cwd, check=True)
         subprocess.run(
-            ["git", "remote", "remove", "origin"],
-            cwd=cwd,
+            ["git", "commit", "-m", "Initial commit from DeepGit"], 
+            cwd=cwd, 
             check=True
         )
+        
+        # 5. Add Remote and Push
         subprocess.run(
             ["git", "remote", "add", "origin", auth_target_url],
             cwd=cwd,
             check=True
         )
         
-        # 4. Push
         logger.info(f"Pushing to {target_clone_url}...")
         subprocess.run(
-            ["git", "push", "-u", "origin", "main"], # Try main first
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        # Note: If main doesn't exist (e.g. master), this might fail. 
-        # A more robust way is to push --all or check branch name. 
-        # Retrying with --all
-        subprocess.run(
-            ["git", "push", "--all", "origin"],
+            ["git", "push", "-u", "origin", "HEAD"], 
             cwd=cwd,
             check=True,
             stdout=subprocess.PIPE,

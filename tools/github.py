@@ -89,23 +89,75 @@ async def fetch_repo_documentation(repo_full_name: str, headers: dict, client: h
     except Exception as e:
         logger.error(f"Error fetching repository contents for {repo_full_name}: {e}")
     readme = await readme_task
+    readme_size = len(readme) if readme else 0
+    
+    arch_doc_size = 0
+    # Calculate architecture/other docs size
+    # results contains the content of fetched files (or Exceptions)
+    # We should sum up the lengths of the valid strings found in results (excluding the README which is handled separately)
+    # Note: results comes from fetch_directory_markdown or fetch_file_content calls above.
+    # The logic above already concatenates them into doc_text (excluding README).
+    # So arch_doc_size is simply the length of doc_text before we prepend README.
+    arch_doc_size = len(doc_text)
+
     if readme:
         doc_text = "# README\n" + readme + doc_text
-    return doc_text if doc_text.strip() else "No documentation available."
+    
+    final_doc = doc_text if doc_text.strip() else "No documentation available."
+    return final_doc, readme_size, arch_doc_size
+
+# async def fetch_simple_metadata(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> dict:
+#     meta = {"branch_count": 0, "pr_count": 0}
+#     try:
+#         b_url = f"https://api.github.com/repos/{repo_full_name}/branches?per_page=6"
+#         b_resp = await mcp_adapter.fetch(b_url, headers=headers, client=client)
+#         if b_resp.status_code == 200:
+#             meta["branch_count"] = len(b_resp.json())
+#         p_url = f"https://api.github.com/repos/{repo_full_name}/pulls?state=all&per_page=11"
+#         p_resp = await mcp_adapter.fetch(p_url, headers=headers, client=client)
+#         if p_resp.status_code == 200:
+#             meta["pr_count"] = len(p_resp.json())
+#     except Exception as e:
+#         logger.error(f"Error fetching metadata for {repo_full_name}: {e}")
+#     return meta
+
 
 async def fetch_simple_metadata(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> dict:
-    meta = {"branch_count": 0, "pr_count": 0}
+    meta = {
+        "branch_count": 0,
+        "pr_count": 0,
+        "contributors_count": 0,
+        "commit_count": 0
+    }
+
     try:
-        b_url = f"https://api.github.com/repos/{repo_full_name}/branches?per_page=6"
+        # Branches
+        b_url = f"https://api.github.com/repos/{repo_full_name}/branches?per_page=100"
         b_resp = await mcp_adapter.fetch(b_url, headers=headers, client=client)
         if b_resp.status_code == 200:
             meta["branch_count"] = len(b_resp.json())
-        p_url = f"https://api.github.com/repos/{repo_full_name}/pulls?state=all&per_page=11"
+
+        # Pull Requests
+        p_url = f"https://api.github.com/repos/{repo_full_name}/pulls?state=all&per_page=100"
         p_resp = await mcp_adapter.fetch(p_url, headers=headers, client=client)
         if p_resp.status_code == 200:
             meta["pr_count"] = len(p_resp.json())
+
+        # Contributors
+        c_url = f"https://api.github.com/repos/{repo_full_name}/contributors?per_page=100"
+        c_resp = await mcp_adapter.fetch(c_url, headers=headers, client=client)
+        if c_resp.status_code == 200:
+            meta["contributors_count"] = len(c_resp.json())
+
+        # Commits
+        commits_url = f"https://api.github.com/repos/{repo_full_name}/commits?per_page=200"
+        commits_resp = await mcp_adapter.fetch(commits_url, headers=headers, client=client)
+        if commits_resp.status_code == 200:
+            meta["commit_count"] = len(commits_resp.json())
+
     except Exception as e:
         logger.error(f"Error fetching metadata for {repo_full_name}: {e}")
+
     return meta
 
 
@@ -133,7 +185,8 @@ async def fetch_github_repositories(
         num_pages += 1
 
     # Randomly sample pages
-    pages_to_fetch = random.sample(range(1, num_pages + 1), k=min(max_pages_per_run, num_pages))
+    # pages_to_fetch = random.sample(range(1, num_pages + 1), k=min(max_pages_per_run, num_pages))
+    pages_to_fetch = range(1, num_pages + 1)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for page in pages_to_fetch:
@@ -142,11 +195,11 @@ async def fetch_github_repositories(
                 "per_page": per_page,
                 "page": page
             }
-            if sort_by_stars:
-                params.update({
-                    "sort": "stars",
-                    "order": "desc"
-                })
+            # if sort_by_stars:
+            #     params.update({
+            #         "sort": "stars",
+            #         "order": "desc"
+            #     })
 
             try:
                 response = await client.get(url, headers=headers, params=params)
@@ -183,19 +236,28 @@ async def fetch_github_repositories(
                     clone_url = repo.get("clone_url", f"https://github.com/{full_name}.git")
                     license_info = repo.get("license") or {}
 
+                    if isinstance(doc, Exception):
+                        combined_doc = ""
+                        readme_size = 0
+                        arch_size = 0
+                    else:
+                        combined_doc, readme_size, arch_size = doc
+                    
                     repositories.append({
                         "title": repo.get("name", "No title available"),
                         "link": repo_link,
                         "clone_url": clone_url,
-                        "combined_doc": doc if not isinstance(doc, Exception) else "",
+                        "combined_doc": combined_doc,
+                        "readme_size": readme_size,
+                        "arch_size": arch_size,
                         "stars": repo.get("stargazers_count", 0),
                         "full_name": full_name,
                         "open_issues_count": repo.get("open_issues_count", 0),
                         "size": repo.get("size", 0),
-                        "contributors_count": 1,
+                        # "contributors_count": 1,
                         "file_list": [],
-                        "branch_count": 0,
-                        "pr_count": 0,
+                        # "branch_count": 0,
+                        # "pr_count": 0,
                         "license_name": license_info.get("name", "Unknown"),
                         "license_key": license_info.get("key", "unknown")
                     })
@@ -208,8 +270,11 @@ async def fetch_github_repositories(
     return repositories
 
 async def ingest_github_repos_async(state, config) -> dict:
+    # Use token from state (Auth Flow) or fallback to Env Var
+    token = getattr(state, "github_token", "") or os.getenv("GITHUB_API_KEY")
+    
     headers = {
-        "Authorization": f"token {os.getenv('GITHUB_API_KEY')}",
+        "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
 
@@ -217,7 +282,7 @@ async def ingest_github_repos_async(state, config) -> dict:
     keyword_list = [kw.strip() for kw in state.searchable_query.split(":") if kw.strip()]
     logger.info(f"Searchable keywords (raw): {keyword_list}")
 
-    target_language = "python"
+    target_language = None
     filtered_keywords = []
     for kw in keyword_list:
         if kw.startswith("target-"):
@@ -229,11 +294,12 @@ async def ingest_github_repos_async(state, config) -> dict:
     project_type = getattr(state, "project_type", "All")
     logger.info(f"Filtered keywords: {keyword_list} | Target language: {target_language} | Project Type: {project_type}")
     
-    star_filter = ""
-    if project_type == "Personal Project":
-        star_filter = " stars:0..100 -topic:template -topic:boilerplate -topic:starter-kit" 
-    elif project_type == "Industry Standard":
-        star_filter = " stars:>5000"
+    # Filter for repos with >10 stars
+    star_filter = " stars:>2"
+    # if project_type == "Personal Project":
+    #     star_filter = " stars:0..100 -topic:template -topic:boilerplate -topic:starter-kit" 
+    # elif project_type == "Industry Standard":
+    #     star_filter = " stars:>5000"
     
     from agent import AgentConfiguration
     agent_config = AgentConfiguration.from_runnable_config(config)
@@ -249,7 +315,9 @@ async def ingest_github_repos_async(state, config) -> dict:
     for keyword in keyword_list:
         # Relax: "auto-insurance-domain" -> "auto insurance domain" (matches text in README/desc)
         clean_kw = keyword.replace("-", " ")
-        query = f"{clean_kw} language:{target_language}{star_filter}"
+        query = f"{clean_kw}{star_filter}"
+        if target_language:
+            query += f" language:{target_language}"
         tasks.append(asyncio.create_task(fetch_with_sem(semaphore, query)))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
