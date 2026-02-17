@@ -202,13 +202,14 @@ async def fetch_github_repositories(
             #     })
 
             try:
-                response = await client.get(url, headers=headers, params=params)
+                # Use mcp_adapter.fetch instead of client.get to ensure correct headers/auth handling
+                response = await mcp_adapter.fetch(url, headers=headers, params=params, client=client)
                 
                 # Simple retry for rate limits
                 if response.status_code in [403, 429]:
                     logger.warning(f"Rate limit hit ({response.status_code}). Backing off for 10s...")
                     await asyncio.sleep(10)
-                    response = await client.get(url, headers=headers, params=params)
+                    response = await mcp_adapter.fetch(url, headers=headers, params=params, client=client)
 
                 if response.status_code != 200:
                     logger.error(f"Error {response.status_code}: {response.json().get('message')}")
@@ -270,64 +271,87 @@ async def fetch_github_repositories(
     return repositories
 
 async def ingest_github_repos_async(state, config) -> dict:
-    # Use token from state (Auth Flow) or fallback to Env Var
-    token = getattr(state, "github_token", "") or os.getenv("GITHUB_API_KEY")
+    # Prioritize Env Var to avoid stale/rate-limited state tokens causing 403s
+    token = os.getenv("GITHUB_API_KEY") or getattr(state, "github_token", "")
     
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
 
-    # Extract keywords from searchable_query
-    keyword_list = [kw.strip() for kw in state.searchable_query.split(":") if kw.strip()]
-    logger.info(f"Searchable keywords (raw): {keyword_list}")
+    # Extract queries
+    # New multi-agent flow provides a list of query combos found in state.searchable_queries
+    # Old flow provided a single string in state.searchable_query
+    query_combos = getattr(state, "searchable_queries", [])
+    if not query_combos:
+        # Fallback to old behavior: treat the single string as a list of 1 (or split if it was colon separated?)
+        # Actually, the old behavior split by colon and did OR search. 
+        # But if convert_query is updated, it populates searchable_queries.
+        # If not, we might be in legacy state.
+        raw_q = getattr(state, "searchable_query", "")
+        if raw_q:
+            # If it's legacy colon-separated list of single keywords, we treat them as separate queries
+            query_combos = [kw.strip() for kw in raw_q.split(":") if kw.strip()]
 
-    target_language = None
-    filtered_keywords = []
-    for kw in keyword_list:
-        if kw.startswith("target-"):
-            target_language = kw.split("target-")[-1]
-        else:
-            filtered_keywords.append(kw)
-    keyword_list = filtered_keywords
+    logger.info(f"Processing {len(query_combos)} query combinations: {query_combos}")
 
     project_type = getattr(state, "project_type", "All")
-    logger.info(f"Filtered keywords: {keyword_list} | Target language: {target_language} | Project Type: {project_type}")
     
-    # Filter for repos with >10 stars
-    star_filter = " stars:>2"
-    # if project_type == "Personal Project":
-    #     star_filter = " stars:0..100 -topic:template -topic:boilerplate -topic:starter-kit" 
-    # elif project_type == "Industry Standard":
-    #     star_filter = " stars:>5000"
+    # Filter for stars
+    star_filter = " stars:>5"
+    if project_type == "Personal Project":
+        star_filter = " stars:5..500" 
     
     from agent import AgentConfiguration
     agent_config = AgentConfiguration.from_runnable_config(config)
 
     all_repos = []
-    semaphore = asyncio.Semaphore(CONCURRENT_DOC_FETCH)
-    tasks = []
+    
+    # Log token status (masked)
+    if token:
+        logger.info(f"Using GitHub Token: {token[:4]}...{token[-4:]}")
+    else:
+        logger.warning("No GitHub Token found! Rate limits will be very strict (10 req/min).")
 
-    async def fetch_with_sem(sem, q):
-        async with sem:
-            return await fetch_github_repositories(q, agent_config.max_results, agent_config.per_page, headers)
+    search_requests = []
+    for combo in query_combos:
+        # Combo is like "auto-insurance:cost-prediction:target-python"
+        parts = [p.strip() for p in combo.split(":") if p.strip()]
+        
+        target_language = None
+        search_terms = []
+        
+        for p in parts:
+            if p.startswith("target-"):
+                target_language = p.split("target-")[-1]
+            else:
+                search_terms.append(p)
+        
+        # User requested OR logic instead of AND.
+        # So we iterate over each search term and run a separate query.
+        for term in search_terms:
+            full_query = f"{term}{star_filter}"
+            if target_language:
+                full_query += f" language:{target_language}"
+            search_requests.append(full_query)
 
-    for keyword in keyword_list:
-        # Relax: "auto-insurance-domain" -> "auto insurance domain" (matches text in README/desc)
-        clean_kw = keyword.replace("-", " ")
-        query = f"{clean_kw}{star_filter}"
-        if target_language:
-            query += f" language:{target_language}"
-        tasks.append(asyncio.create_task(fetch_with_sem(semaphore, query)))
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for result in results:
-        if not isinstance(result, Exception):
+    # SEQUENTIAL EXECUTION to avoid hitting 30 req/min Search API limit
+    # (5 tags * parallel would be ~5-10 burst requests, risking 403)
+    for i, full_query in enumerate(search_requests):
+        logger.info(f"Executing Search {i+1}/{len(search_requests)}: '{full_query}'")
+        try:
+            # Run search for this tag
+            result = await fetch_github_repositories(full_query, agent_config.max_results, agent_config.per_page, headers)
             all_repos.extend(result)
-        else:
-            logger.error(f"Error in fetching repositories for a keyword: {result}")
+            
+            # Short sleep between searches to be nice to the API
+            if i < len(search_requests) - 1:
+                await asyncio.sleep(3.0)
+                
+        except Exception as e:
+            logger.error(f"Error fetching repositories for query '{full_query}': {e}")
 
-    # Remove duplicates
+    # Deduplicate
     seen = set()
     unique_repos = []
     for repo in all_repos:

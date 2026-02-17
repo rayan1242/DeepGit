@@ -467,47 +467,46 @@ with gr.Blocks(
         for status, details, structured in stream_workflow(topic, p_type, ind, skip_llm=False):
             yield status, details, structured
 
-    def stepwise_runner_direct_tag(topic, p_type, ind):
+    def stepwise_runner_direct_tag(topic, p_type, ind, current_repos):
         # Runs with skip_llm=True so we don't re-generate tags
         for status, details, structured in stream_workflow(topic, p_type, ind, skip_llm=True):
-            yield status, details, structured
+            # If structured is empty (intermediate step), yield current_repos to preserve state
+            # causing the UI to not break/flash empty.
+            if not structured:
+                yield status, details, current_repos
+            else:
+                yield status, details, structured
 
-    from tools.chat import convert_to_search_tags
+    from tools.chat import iterative_convert_to_search_tags
 
-    def on_generate_tags(topic):
+    # Hidden state to store tags for automatic execution
+    tags_string_state = gr.State("")
+
+    def on_generate_tags_auto(topic):
         try:
-             # convert_to_search_tags now returns a colon-separated string of tags
-             tags_str = convert_to_search_tags(topic)
-             if not tags_str:
-                 return gr.update(visible=True, choices=["No tags generated."]), gr.update(visible=True, value="None")
-             
-             raw_tags = [t.strip() for t in tags_str.split(":") if t.strip()]
-             # We can use individual tags as queries, or the whole set
-             # We want the full colon-separated string as the single query option
-             queries = [tags_str]
-             tags_text = tags_str
-             
-             if not queries:
-                  return gr.update(visible=True, choices=["No tags generated."]), gr.update(visible=True, value="None")
-                  
-             return (
-                 gr.update(visible=True, choices=queries, value=None),
-                 gr.update(visible=True, value=tags_text)
-             )
+             # iterative_convert_to_search_tags returns a colon-separated string
+             tags_string = iterative_convert_to_search_tags(topic)
+             if not tags_string:
+                 return "None"
+             return tags_string
         except Exception as e:
-             return gr.update(visible=True, choices=[f"Error: {e}"]), gr.update(visible=True, value=f"Error: {e}")
+             logger.error(f"Tag generation failed: {e}")
+             return "Error"
 
-    search_btn.click(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
-    # Connect enter key on text box to same function
-    # research_input.submit(fn=on_generate_tags, inputs=[research_input], outputs=[tags_radio, tags_raw_display])
-
-    # Changed: Use stepwise_runner_direct_tag for the radio selection
-    tags_radio.change(
+    # Chain: Generate Tags -> Store in State -> Trigger Search
+    search_btn.click(
+        fn=on_generate_tags_auto,
+        inputs=[research_input],
+        outputs=[tags_string_state]
+    ).then(
         fn=stepwise_runner_direct_tag,
-        inputs=[tags_radio, project_type_input, industry_input],
+        inputs=[tags_string_state, project_type_input, industry_input, state],
         outputs=[status_display, detail_display, state],
         show_progress=True
     ).then(fn=update_dropdown, inputs=[state], outputs=[repo_dropdown])
+
+    # Connect enter key on text box to same function chain
+    # research_input.submit(...) # (Optional, matching button behavior)
 
     gr.HTML(footer)
 demo.queue(max_size=10).launch()

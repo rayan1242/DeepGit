@@ -48,6 +48,7 @@ if "GITHUB_API_KEY" not in os.environ:
 class AgentState:
     user_query: str = field(default="")
     searchable_query: str = field(default="")
+    searchable_queries: List[str] = field(default_factory=list) # List of validated search strings
     skip_llm_expansion: bool = field(default=False)      # flag to skip query expansion
     hardware_spec: str = field(default="")               # extracted hardware hint
     project_type: str = field(default="All")             # "Personal", "Industry", "All"
