@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_FILE = Path("deepgit.db")
+DB_FILE = Path("deepsearch.db")
 
 def check_db():
     if not DB_FILE.exists():

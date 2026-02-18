@@ -1,4 +1,14 @@
 .env
 venv
 __pycache__
-deepgit.db
+deepsearch.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+aws/
+
+teraform/

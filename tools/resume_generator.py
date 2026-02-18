@@ -16,13 +16,22 @@ def generate_resume_bullets(repo_name: str, description: str, readme_content: st
     Generates 4-5 impact-driven resume bullet points for a given repository.
     """
     
-    # Initialize LLM
-    llm = ChatGroq(
-        model="llama-3.1-8b-instant",
-        temperature=0.7,
-        max_tokens=512,
-        max_retries=3,
-    )
+    # Initialize LLM (Groq or Bedrock)
+    llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
+
+    if llm_provider == "bedrock":
+        from langchain_aws import ChatBedrock
+        llm = ChatBedrock(
+            model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_kwargs={"temperature": 0.7, "max_tokens": 512},
+        )
+    else:
+        llm = ChatGroq(
+            model="llama-3.1-8b-instant",
+            temperature=0.7,
+            max_tokens=512,
+            max_retries=3,
+        )
 
     prompt_template = """
     You are an expert technical resume writer. 

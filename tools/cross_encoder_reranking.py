@@ -2,13 +2,14 @@
 import numpy as np
 import logging
 from sentence_transformers import CrossEncoder
+from tools.model_cache import get_cross_encoder_model
 
 logger = logging.getLogger(__name__)
 
 def cross_encoder_reranking(state, config):
     from agent import AgentConfiguration
     agent_config = AgentConfiguration.from_runnable_config(config)
-    cross_encoder = CrossEncoder(agent_config.cross_encoder_model_name)
+    cross_encoder = get_cross_encoder_model(agent_config.cross_encoder_model_name)
     # Use top candidates from semantic ranking (e.g., top 100)
     candidates_for_rerank = state.semantic_ranked[:100]
     logger.info(f"Re-ranking {len(candidates_for_rerank)} candidates with cross-encoder...")

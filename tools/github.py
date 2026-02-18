@@ -271,13 +271,14 @@ async def fetch_github_repositories(
     return repositories
 
 async def ingest_github_repos_async(state, config) -> dict:
-    # Prioritize Env Var to avoid stale/rate-limited state tokens causing 403s
-    token = os.getenv("GITHUB_API_KEY") or getattr(state, "github_token", "")
+    # Prioritize User Token (OAuth) if available, otherwise use Env Var
+    token = getattr(state, "github_token", "")  # or os.getenv("GITHUB_API_KEY")
     
     headers = {
-        "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
+    if token:
+        headers["Authorization"] = f"token {token}"
 
     # Extract queries
     # New multi-agent flow provides a list of query combos found in state.searchable_queries

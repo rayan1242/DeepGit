@@ -15,6 +15,7 @@ from sentence_transformers import SentenceTransformer, CrossEncoder
 import faiss
 
 from langchain_groq import ChatGroq
+from tools.model_cache import get_semantic_model, get_cross_encoder_model
 from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, END
@@ -201,7 +202,7 @@ def semantic_ranking_tool(query: str, candidates: List[Dict[str, Any]]) -> List[
         logger.info("No candidates provided for semantic ranking. Returning empty list.")
         return []
     docs = [repo.get("combined_doc", "") for repo in candidates]
-    sem_model = SentenceTransformer("all-mpnet-base-v2")
+    sem_model = get_semantic_model()
     logger.info(f"Encoding {len(docs)} documents for dense retrieval...")
     doc_embeddings = sem_model.encode(docs, convert_to_numpy=True, show_progress_bar=True, batch_size=16)
     if doc_embeddings.ndim == 1:
@@ -231,7 +232,7 @@ def cross_encoder_rerank_tool(query: str, candidates: List[Dict[str, Any]], top_
     if not candidates:
         logger.info("No candidates for cross-encoder reranking. Returning empty list.")
         return []
-    cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    cross_encoder = get_cross_encoder_model()
     pairs = [[query, candidate["combined_doc"]] for candidate in candidates]
     scores = cross_encoder.predict(pairs, show_progress_bar=True)
     for candidate, score in zip(candidates, scores):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DB_FILE = Path(__file__).resolve().parent / "deepgit.db"
+DB_FILE = Path(__file__).resolve().parent / "deepsearch.db"
 
 def init_db():
     """Initialize the SQLite database and create tables if they don't exist."""

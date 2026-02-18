@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepGit
+  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepSearch
 </h1>
 
 
@@ -7,16 +7,16 @@
   <img src="assets/workflow.png" alt="Langgraph Workflow Diagram" style="max-width: 800px; width: 100%; height: auto;" />
 </p>
 
-### DeepGit 2.0 🤯 — now **hardware‑aware** & **ColBERT‑powered**
+### DeepSearch 2.0 🤯 — now **hardware‑aware** & **ColBERT‑powered**
 
 ## DeepGit
 
-**DeepGit** is an advanced, Langgraph-based agentic workflow designed to perform deep research across GitHub repositories. It intelligently searches, analyzes, and ranks repositories based on user intent—even uncovering less-known but highly relevant tools. DeepGit infuses hybrid dense retrieval with advanced cross-encoder re-ranking and comprehensive activity analysis into a unified, open-source platform for intelligent repository discovery
+**DeepSearch** is an advanced, Langgraph-based agentic workflow designed to perform deep research across GitHub repositories. It intelligently searches, analyzes, and ranks repositories based on user intent—even uncovering less-known but highly relevant tools. DeepSearch infuses hybrid dense retrieval with advanced cross-encoder re-ranking and comprehensive activity analysis into a unified, open-source platform for intelligent repository discovery
 
 ---
 ### Try out the Lite version here 🧑‍🎓
 
-DeepGit-lite is a lightweight version of DeepGit running on zero GPU on Hugging Face Space [here.](https://huggingface.co/spaces/zamal/DeepGit) <br>
+DeepSearch-lite is a lightweight version of DeepSearch running on zero GPU on Hugging Face Space [here.](https://huggingface.co/spaces/zamal/DeepSearch) <br>
 It may not perform as well as the full version, but it's great for a quick first-hand preview.
 
 ---
@@ -27,15 +27,15 @@ The latest release makes it even **deeper, smarter, and faster**:
 | New feature | What it gives you |
 |-------------|------------------|
 | **⚛️ Multi‑dimensional ColBERT v2 embeddings** | Fine‑grained token‑level similarity for nuanced matches that single‑vector embeddings miss. |
-| **🔩 Smart Hardware Filter** | Tell DeepGit your device specs — CPU-only, low RAM, or mobile. It filters out repos that won’t run smoothly, so you only see ones that fit your setup. |
+| **🔩 Smart Hardware Filter** | Tell DeepSearch your device specs — CPU-only, low RAM, or mobile. It filters out repos that won't run smoothly, so you only see ones that fit your setup. |
 
-DeepGit still unifies hybrid dense retrieval, cross‑encoder re‑ranking, activity & quality analysis—but now every step is both *smarter* and *leaner*.
+DeepSearch still unifies hybrid dense retrieval, cross‑encoder re‑ranking, activity & quality analysis—but now every step is both *smarter* and *leaner*.
 
 ---
 
 ## ⚙️ How It Works — Agentic Workflow *v2*
 
-When the user submits a query, the **DeepGit Orchestrator Agent** triggers a relay of expert tools:
+When the user submits a query, the **DeepSearch Orchestrator Agent** triggers a relay of expert tools:
 
 1. **Query Expansion**  
    An LLM turns your natural‑language question into high‑signal GitHub tags for precise searching.
@@ -76,17 +76,17 @@ When the user submits a query, the **DeepGit Orchestrator Agent** triggers a rel
 
 ## 🖥️ User Interface
 
-DeepGit provides an intuitive interface for exploring repository recommendations. The main page where users enter raw natural language query. This is the primary interaction point for initiating deep semantic searches.
+DeepSearch provides an intuitive interface for exploring repository recommendations. The main page where users enter raw natural language query. This is the primary interaction point for initiating deep semantic searches.
 
 <p align="center">
-  <img src="assets/dashboard.png" alt="DeepGit Dashboard" style="max-width: 800px; width: 100%; height: auto;" />
+  <img src="assets/dashboard.png" alt="DeepSearch Dashboard" style="max-width: 800px; width: 100%; height: auto;" />
 </p>
 
 *Output:* Showcases the tabulated results with clickable links and different threshold scores, making it easy to compare and understand the ranking criteria.
 
 
 <p align="center">
-  <img src="assets/output.png" alt="DeepGit App UI" style="max-width: 800px; width: 100%; height: auto;" />
+  <img src="assets/output.png" alt="DeepSearch App UI" style="max-width: 800px; width: 100%; height: auto;" />
 </p>
 
 ---
@@ -103,8 +103,8 @@ DeepGit provides an intuitive interface for exploring repository recommendations
 
 #### 1. Clone the Repository
 ```bash
-git clone https://github.com/zamalali/DeepGit.git
-cd DeepGit
+git clone https://github.com/zamalali/DeepSearch.git
+cd DeepSearch
 ```
 
 #### 2. Create a Virtual Environment (Recommended)
@@ -123,9 +123,9 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### 5. 🚀 Running DeepGit via App
+#### 5. 🚀 Running DeepSearch via App
 
-To run DeepGit locally, simply execute:
+To run DeepSearch locally, simply execute:
 
 ```bash
 python app.py
@@ -141,11 +141,11 @@ python app.py
 
 ---
 
-### 🛠️ Running DeepGit
+### 🛠️ Running DeepSearch
 
-For a detailed documentation on using DeepGit, Check out [here](docs).
+For a detailed documentation on using DeepSearch, Check out [here](docs).
 
-DeepGit leverages Langgraph for orchestration. To launch the Langsmith dashboard and start the workflow, simply run:
+DeepSearch leverages Langgraph for orchestration. To launch the Langsmith dashboard and start the workflow, simply run:
 
 ```bash
 langgraph dev

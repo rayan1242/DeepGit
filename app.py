@@ -5,7 +5,7 @@ import time
 import threading
 import logging
 import subprocess
-from agent import graph  # Your DeepGit langgraph workflow
+from agent import graph  # Your DeepSearch langgraph workflow
 from tools.github_actions import clone_and_push_repo
 from tools.resume_generator import generate_resume_bullets
 from tools.feature_recommender import recommend_features
@@ -79,8 +79,8 @@ def filter_logs(logs):
 
 favicon_html = """
 <head>
-<link rel="icon" type="image/x-icon" href="file/assets/deepgit.ico">
-<title>DeepGit Research Agent</title>
+<link rel="icon" type="image/x-icon" href="file/assets/DeepSearch.ico">
+<title>DeepSearch Research Agent</title>
 </head>
 """
 
@@ -88,18 +88,18 @@ title = """
 <div style="text-align: center; margin-top: 20px;">
   <h1 style="font-size: 36px; display: inline-flex; align-items: center; gap: 16px;">
     <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="64" />
-    <span>DeepGit</span>
+    <span>DeepSearch</span>
   </h1>
   <p style="font-size: 18px; color: #555; margin-top: 10px;">
-    ⚙️ Built for open-source, by an open-sourcer — DeepGit finds gold in the GitHub haystack.
+    ⚙️ Built for open-source, by an open-sourcer — DeepSearch finds gold in the GitHub haystack.
   </p>
 </div>
 """
 
 description = """<p align="center">
-<strong>DeepGit</strong> is a multi‑stage research agent that digs through GitHub so you don’t have to.<br/>
+<strong>DeepSearch</strong> is a multi‑stage research agent that digs through GitHub so you don’t have to.<br/>
 Just describe what you’re hunting for — and, if you like, add a hint about your hardware (“GPU‑poor”, “mobile‑only”, etc.).<br/><br/>
-Behind the scenes, DeepGit now orchestrates an upgraded tool‑chain:<br/>
+Behind the scenes, DeepSearch now orchestrates an upgraded tool‑chain:<br/>
 99: • Query Expansion&nbsp;→&nbsp;ColBERT‑v2 token‑level Semantic Retrieval&nbsp;→&nbsp;Cross‑Encoder Re‑ranking<br/>
 100: • Hardware‑aware Dependency Filter that discards repos your device can’t run<br/>
 101: • Codebase & Community Insight modules for quality and activity signals<br/><br/>
@@ -111,19 +111,15 @@ Behind the scenes, DeepGit now orchestrates an upgraded tool‑chain:<br/>
 consent_text = """
 <div style="padding: 10px; text-align: center;">
   <p>
-    By using DeepGit, you consent to the collection and temporary processing of your query for semantic search and ranking purposes.<br/>
-    No data is stored permanently, and your input is only used to power the DeepGit agent workflow.
-  </p>
-  <p>
-    ⭐ Star us on GitHub if you find this tool useful!<br/>
-    <a href="https://github.com/zamalali/DeepGit" target="_blank">GitHub</a>
+    By using DeepSearch, you consent to the collection and temporary processing of your query for semantic search and ranking purposes.<br/>
+    No data is stored permanently, and your input is only used to power the DeepSearch agent workflow.
   </p>
 </div>
 """
 
 footer = """
 <div style="text-align: center; margin-top: 40px; font-size: 13px; color: #888;">
-    Made with <span style="color: crimson;">❤️</span> by <b>Zamal</b>
+    Made with <span style="color: crimson;">❤️</span>
 </div>
 """
 
@@ -198,7 +194,7 @@ def parse_result_to_html(raw_result: str) -> str:
 # Background Workflow Runner
 # ---------------------------
 def run_workflow(topic, project_type, industry, result_container, skip_llm=False):
-    """Runs the DeepGit workflow and stores the raw result."""
+    """Runs the DeepSearch workflow and stores the raw result."""
     token = auth.get_active_token()
     initial_state = {
         "user_query": topic,
@@ -303,7 +299,7 @@ with gr.Blocks(
                 if "error" in res:
                     return f"❌ Error: {res['error']}", "", None
                 
-                msg = f"### Step 1: Authorization Required\n\n**User Code:** `{res['user_code']}`\n\n1. Copy the code above.\n2. Click the link below to open GitHub.\n3. Paste the code and authorize DeepGit."
+                msg = f"### Step 1: Authorization Required\n\n**User Code:** `{res['user_code']}`\n\n1. Copy the code above.\n2. Click the link below to open GitHub.\n3. Paste the code and authorize DeepSearch."
                 link = f"[👉 Click here to Authorize on GitHub]({res['verification_uri']})"
                 return msg, link, res['device_code']
 
@@ -350,7 +346,7 @@ with gr.Blocks(
         
         search_btn = gr.Button("Generate Search Tags", variant="primary")
         tags_raw_display = gr.Textbox(label="Generated Tags (Raw)", visible=False, interactive=False)
-        tags_radio = gr.Radio(label="Select a Query to Launch DeepGit", visible=False, interactive=True)
+        tags_radio = gr.Radio(label="Select a Query to Launch DeepSearch", visible=False, interactive=True)
         # Display the latest log line as status, and full log stream as details.
         status_display = gr.Markdown("")   
         detail_display = gr.HTML("")

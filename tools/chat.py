@@ -11,12 +11,23 @@ if dotenv_path.exists():
     load_dotenv(dotenv_path)
 
 # Step 1: Instantiate the Groq model with appropriate settings.
-llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    temperature=0.3,
-    max_tokens=512,
-    max_retries=3,
-)
+# Step 1: Instantiate the LLM (Groq or AWS Bedrock)
+llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
+
+if llm_provider == "bedrock":
+    from langchain_aws import ChatBedrock
+    # Uses default AWS credentials (env vars or ~/.aws/credentials)
+    llm = ChatBedrock(
+        model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+        model_kwargs={"temperature": 0.3, "max_tokens": 512},
+    )
+else:
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        temperature=0.3,
+        max_tokens=512,
+        max_retries=3,
+    )
 
 # Step 2: Build the prompt with enhanced instructions for iterative thinking and target language detection.
 prompt = ChatPromptTemplate.from_messages([

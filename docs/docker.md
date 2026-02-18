@@ -1,15 +1,15 @@
 <h1 align="center">
-  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepGit on Docker
+  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepSearch on Docker
 </h1>
 
 Build the Docker Image
 From the root directory of your project, run:
 
 ```bash
-docker build -t deepgit-app .
+docker build -t deepsearch-app .
 ```
 
-This command builds a Docker image tagged as deepgit-app using Python 3.10-slim as the base image and installs all the necessary dependencies.
+This command builds a Docker image tagged as deepsearch-app using Python 3.10-slim as the base image and installs all the necessary dependencies.
 
 ### Run the Docker Container
 Once the image is built, start a container with:

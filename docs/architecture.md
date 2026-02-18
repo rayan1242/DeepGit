@@ -1,8 +1,8 @@
 <h1 align="center">
-  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepGit Architecture
+  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepSearch Architecture
 </h1>
 
-DeepGit leverages a state graph to process a user's query and deliver a ranked list of repositories. Each node in the graph handles a specific function. Below is an overview of the entire architecture:
+DeepSearch leverages a state graph to process a user's query and deliver a ranked list of repositories. Each node in the graph handles a specific function. Below is an overview of the entire architecture:
 
 1. **Query Conversion**  
    - **Function:** Converts the raw user query into colon-separated search tags using an LLM.

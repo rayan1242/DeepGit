@@ -24,7 +24,7 @@ def create_github_repo(repo_name: str, token: str, private: bool = False) -> str
     data = {
         "name": repo_name,
         "private": private,
-        "description": "Forked/Mirrored via DeepGit",
+        "description": "Forked/Mirrored via DeepSearch",
         "has_issues": True,
         "has_projects": False,
         "has_wiki": False
@@ -103,7 +103,7 @@ def clone_and_push_repo(source_url: str, target_repo_name: str, token: str, priv
         subprocess.run(["git", "init"], cwd=cwd, check=True)
         subprocess.run(["git", "add", "."], cwd=cwd, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit from DeepGit"], 
+            ["git", "commit", "-m", "Initial commit from DeepSearch"], 
             cwd=cwd, 
             check=True
         )

@@ -124,7 +124,7 @@ def fetch_github_repositories(query, max_results=1000, per_page=100):
 # ---------------------------
 # Stage 1: Dense Retrieval with FAISS
 # ---------------------------
-sem_model = SentenceTransformer("all-mpnet-base-v2")
+sem_model = get_semantic_model()
 user_query_text = """
 I am researching the application of Chain of Thought prompting for improving reasoning in large language models within a Python environment.
 """
@@ -154,7 +154,7 @@ logger.info(f"Stage 1 complete: {len(ranked_by_semantic)} candidates ranked by s
 # ---------------------------
 # Stage 2: Re-Ranking with Cross-Encoder
 # ---------------------------
-cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+cross_encoder = get_cross_encoder_model()
 def cross_encoder_rerank(query, candidates, top_n=50):
     pairs = [[query, candidate["combined_doc"]] for candidate in candidates]
     scores = cross_encoder.predict(pairs, show_progress_bar=True)

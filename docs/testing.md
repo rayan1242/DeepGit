@@ -1,8 +1,8 @@
 <h1 align="center">
-  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> Testing DeepGit
+  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> Testing DeepSearch
 </h1>
 
-DeepGit includes a comprehensive suite of tests to ensure the reliability of each module.
+DeepSearch includes a comprehensive suite of tests to ensure the reliability of each module.
 
 ## Test Suite Overview
 

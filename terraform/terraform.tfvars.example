@@ -1,0 +1,47 @@
+# terraform/terraform.tfvars.example
+# Copy this file to terraform.tfvars and fill in your values
+
+# AWS Configuration
+aws_region = "us-east-1"
+
+# Application Configuration
+app_name = "deepsearch"
+
+# IMPORTANT: You must provide the ECR image URL before applying
+# After running 'terraform apply', the ECR URL will be in the outputs:
+# container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/deepsearch:latest"
+# 
+# To get your AWS Account ID:
+# aws sts get-caller-identity --query Account --output text
+#
+# Steps to build and push Docker image to ECR:
+# 1. docker build -t deepsearch:latest .
+# 2. aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+# 3. docker tag deepsearch:latest ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/deepsearch:latest
+# 4. docker push ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/deepsearch:latest
+#
+container_image = ""  # Leave empty for first apply, then update with ECR URL
+
+container_port = 7860
+
+# GitHub API Configuration
+# Get your token from: https://github.com/settings/tokens
+github_api_key = ""  # Set this via export GITHUB_API_KEY=xxx or in this file
+
+# Groq API Configuration (if using Groq as LLM provider)
+# Get your API key from: https://console.groq.com
+groq_api_key = ""  # Set this via export GROQ_API_KEY=xxx or in this file
+
+# LLM Provider Selection
+# Options: "groq" or "bedrock"
+# Use "bedrock" for AWS-native Claude/Llama models
+# Use "groq" for fast open-source inference
+llm_provider = "bedrock"
+
+# Environment Tags
+environment_tags = {
+  Environment = "production"
+  ManagedBy   = "Terraform"
+  Project     = "DeepSearch"
+  Owner       = "your-name"
+}

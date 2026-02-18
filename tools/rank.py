@@ -10,6 +10,7 @@ import faiss
 from pathlib import Path
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer, CrossEncoder
+from tools.model_cache import get_semantic_model, get_cross_encoder_model
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
@@ -172,7 +173,7 @@ def fetch_repositories(state: AgentState, config: RunnableConfig):
 # ---------------------------
 def dense_retrieval(state: AgentState, config: RunnableConfig):
     agent_config = AgentConfiguration.from_runnable_config(config)
-    sem_model = SentenceTransformer(agent_config.sem_model_name)
+    sem_model = get_semantic_model(agent_config.sem_model_name)
     
     docs = [repo.get("combined_doc", "") for repo in state.repositories]
     if not docs:
@@ -219,7 +220,7 @@ def dense_retrieval(state: AgentState, config: RunnableConfig):
 # ---------------------------
 def cross_encoder_rerank(state: AgentState, config: RunnableConfig):
     agent_config = AgentConfiguration.from_runnable_config(config)
-    cross_encoder = CrossEncoder(agent_config.cross_encoder_model_name)
+    cross_encoder = get_cross_encoder_model(agent_config.cross_encoder_model_name)
     candidates_for_rerank = state.semantic_ranked[:100]
     logger.info(f"Re-ranking {len(candidates_for_rerank)} candidates with cross-encoder...")
     def cross_encoder_rerank_func(query, candidates, top_n):

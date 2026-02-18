@@ -137,11 +137,20 @@ def _analyze_soft_signals_with_llm(title: str, readme: str) -> tuple[int, dict]:
     - Code Tone
     """
     try:
-        llm = ChatGroq(
-            model="llama-3.1-8b-instant",
-            temperature=0.0,  # Deterministic
-            max_tokens=1024
-        )
+        llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
+
+        if llm_provider == "bedrock":
+            from langchain_aws import ChatBedrock
+            llm = ChatBedrock(
+                model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+                model_kwargs={"temperature": 0.0, "max_tokens": 1024},
+            )
+        else:
+            llm = ChatGroq(
+                model="llama-3.1-8b-instant",
+                temperature=0.0,  # Deterministic
+                max_tokens=1024
+            )
         
         prompt_text = """
         You are an expert Code Auditor. Evaluate this repository README for "Personal Project Authenticity" based on these criteria.

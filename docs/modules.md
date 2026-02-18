@@ -1,8 +1,8 @@
 <h1 align="center">
-  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepGit Modules
+  <img src="https://img.icons8.com/?size=100&id=118557&format=png&color=000000" width="72" style="vertical-align: middle;"/> DeepSearch Modules
 </h1>
 
-This document provides detailed descriptions of each module in the DeepGit workflow.
+This document provides detailed descriptions of each module in the DeepSearch workflow.
 
 ### 1. Query Conversion (`tools/convert_query.py`)
 - **Purpose:** Convert the raw user query into colon-separated search tags.

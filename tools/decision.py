@@ -10,12 +10,23 @@ if dotenv_path.exists():
     load_dotenv(dotenv_path)
 
 # LLM setup: DeepSeek-R1-Distill
-llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    temperature=0.3,
-    max_tokens=512,
-    max_retries=3,
-)
+# LLM setup: DeepSeek-R1-Distill (Groq) or Bedrock
+llm_provider = os.getenv("LLM_PROVIDER", "groq").lower()
+
+if llm_provider == "bedrock":
+    from langchain_aws import ChatBedrock
+    # Verify AWS credentials are set in environment or via ~/.aws/credentials
+    llm = ChatBedrock(
+        model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+        model_kwargs={"temperature": 0.3, "max_tokens": 512},
+    )
+else:
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        temperature=0.3,
+        max_tokens=512,
+        max_retries=3,
+    )
 
 
 # Prompt for decision making
