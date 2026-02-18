@@ -4,7 +4,7 @@ import requests
 import numpy as np
 import datetime
 import torch
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from tools.embedding_utils import SentenceTransformer, CrossEncoder
 import faiss
 import getpass
 import math

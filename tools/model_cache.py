@@ -5,7 +5,7 @@ Models are loaded once and reused throughout the application lifecycle.
 
 import logging
 from typing import Optional, Dict
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from .embedding_utils import SentenceTransformer, CrossEncoder
 
 logger = logging.getLogger(__name__)
 

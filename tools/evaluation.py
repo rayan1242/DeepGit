@@ -11,7 +11,7 @@ from typing import Dict, List, Any, TypedDict
 from pathlib import Path
 from dotenv import load_dotenv
 
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from .embedding_utils import SentenceTransformer, CrossEncoder
 import faiss
 
 from langchain_groq import ChatGroq

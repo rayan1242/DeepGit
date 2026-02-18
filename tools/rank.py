@@ -9,7 +9,7 @@ import getpass
 import faiss
 from pathlib import Path
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from .embedding_utils import SentenceTransformer, CrossEncoder
 from tools.model_cache import get_semantic_model, get_cross_encoder_model
 
 from langchain_core.runnables import RunnableConfig

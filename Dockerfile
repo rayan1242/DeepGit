@@ -24,6 +24,7 @@ COPY requirements.txt .
 
 RUN echo "Step 3: Installing Python dependencies (this may take a few minutes)..." && \
     pip install --upgrade pip setuptools wheel build >/dev/null 2>&1 && \
+    pip install torch==2.0.0 --index-url https://download.pytorch.org/whl/cpu && \
     pip install -r requirements.txt && \
     echo "✓ Python dependencies installed"
 
