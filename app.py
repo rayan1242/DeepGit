@@ -91,21 +91,20 @@ title = """
     <span>DeepSearch</span>
   </h1>
   <p style="font-size: 18px; color: #555; margin-top: 10px;">
-    ⚙️ Built for open-source, by an open-sourcer — DeepSearch finds gold in the GitHub haystack.
+    ⚙️ DeepSearch finds gold in the GitHub haystack.
   </p>
 </div>
 """
 
 description = """<p align="center">
 <strong>DeepSearch</strong> is a multi‑stage research agent that digs through GitHub so you don’t have to.<br/>
-Just describe what you’re hunting for — and, if you like, add a hint about your hardware (“GPU‑poor”, “mobile‑only”, etc.).<br/><br/>
+Just describe what you’re hunting for...<br/><br/>
 Behind the scenes, DeepSearch now orchestrates an upgraded tool‑chain:<br/>
-99: • Query Expansion&nbsp;→&nbsp;ColBERT‑v2 token‑level Semantic Retrieval&nbsp;→&nbsp;Cross‑Encoder Re‑ranking<br/>
-100: • Hardware‑aware Dependency Filter that discards repos your device can’t run<br/>
-101: • Codebase & Community Insight modules for quality and activity signals<br/><br/>
-102: Feed it a topic below; the agent will analyze, rank, and explain the most relevant, <em>runnable</em> repositories.  
-103: A short wait earns you a gold‑curated list.
-104: </p>"""
+• Query Expansion&nbsp;→&nbsp;ColBERT‑v2 token‑level Semantic Retrieval&nbsp;→&nbsp;Cross‑Encoder Re‑ranking<br/>
+• Codebase & Community Insight modules for quality and activity signals<br/><br/>
+Feed it a topic below; the agent will analyze, rank, and explain the most relevant, <em>runnable</em> repositories.  
+A short wait earns you a gold‑curated list.
+</p>"""
 
 
 consent_text = """
@@ -119,7 +118,6 @@ consent_text = """
 
 footer = """
 <div style="text-align: center; margin-top: 40px; font-size: 13px; color: #888;">
-    Made with <span style="color: crimson;">❤️</span>
 </div>
 """
 

@@ -6,6 +6,39 @@ from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
 
+"""
+EMBEDDING ALTERNATIVES:
+
+1. COLBERT (Current - Token-level, sparse-aware):
+   - Best for: Nuanced keyword matching, fast inference
+   - Model: colbert-ir/colbertv2.0
+   - Speed: Fast | Memory: Low | Quality: Good
+   
+2. SENTENCE-TRANSFORMERS (Dense, semantic):
+   - Models: all-MiniLM-L6-v2 (fast), all-mpnet-base-v2 (better quality)
+   - Installation: pip install sentence-transformers
+   - Usage: from sentence_transformers import SentenceTransformer
+   - Speed: Medium | Memory: Medium | Quality: Better
+   
+3. OPENAI EMBEDDINGS (Best quality, cloud-based):
+   - Model: text-embedding-3-small (cheaper, faster)
+   - Cost: ~$0.02 per 1M tokens
+   - Speed: Slow (network) | Memory: None | Quality: Best
+   
+4. TOGETHER.AI EMBEDDINGS (Free alternative):
+   - Installation: pip install together
+   - Models: meta-llama/Llama-2-7b (embeddings variant)
+   - Cost: Free | Speed: Fast | Quality: Good
+
+To use sentence-transformers instead of ColBERT:
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    query_embedding = model.encode([state.user_query])[0]
+    doc_embeddings = model.encode([doc for doc in docs])
+    from sklearn.metrics.pairwise import cosine_similarity
+    scores = cosine_similarity([query_embedding], doc_embeddings)[0]
+"""
+
 
 def hybrid_dense_retrieval(state, config):
     """

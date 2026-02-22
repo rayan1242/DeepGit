@@ -78,7 +78,7 @@ class AgentStateOutput:
     structured_results: List[Any] = field(default_factory=list)
 
 class AgentConfiguration(BaseModel):
-    max_results: int = Field(500, title="Max Results", description="Max GitHub results")
+    max_results: int = Field(150, title="Max Results", description="Max GitHub results")
     per_page: int = Field(100, title="Per Page", description="GitHub results per page")
     dense_retrieval_k: int = Field(75, title="Dense K", description="Top‑K for dense retrieval")
     cross_encoder_top_n: int = Field(30, title="Cross‑encoder N", description="Top‑N after re‑rank")

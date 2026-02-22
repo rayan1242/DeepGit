@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 # In-memory cache to store file content for given URLs
 FILE_CONTENT_CACHE = {}
 
-# --- Concurrency control ---
+# --- Concurrency control & Doc Size Limits ---
 CONCURRENT_DOC_FETCH = 3  # limit concurrent doc fetches to avoid rate-limit
+MAX_README_SIZE = 500    # Max README size in bytes (~1000 tokens)
+MAX_ARCH_DOCS_SIZE = 500 # Max architecture/other docs size in bytes (~1250 tokens)
+MAX_TOTAL_DOC_SIZE = 1000 # Max total doc size per repo in bytes (~2000 tokens)
 
 async def fetch_readme_content(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> str:
     readme_url = f"https://api.github.com/repos/{repo_full_name}/readme"
@@ -62,7 +65,13 @@ async def fetch_directory_markdown(repo_full_name: str, path: str, headers: dict
         logger.error(f"Error fetching directory markdown for {repo_full_name}/{path}: {e}")
     return md_content
 
-async def fetch_repo_documentation(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> str:
+async def fetch_repo_documentation(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> tuple:
+    """
+    Fetch and truncate repository documentation to respect size limits.
+    
+    Returns:
+        tuple: (final_doc, readme_size, arch_doc_size)
+    """
     doc_text = ""
     readme_task = asyncio.create_task(fetch_readme_content(repo_full_name, headers, client))
     root_url = f"https://api.github.com/repos/{repo_full_name}/contents"
@@ -83,27 +92,47 @@ async def fetch_repo_documentation(repo_full_name: str, headers: dict, client: h
                 elif item["type"] == "dir" and item["name"].lower() in ["docs", "documentation"]:
                     tasks.append(asyncio.create_task(safe_fetch(fetch_directory_markdown, repo_full_name, item["name"], headers, client)))
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Accumulate docs while respecting size limits
             for res in results:
-                if not isinstance(res, Exception):
-                    doc_text += "\n\n" + res
+                if not isinstance(res, Exception) and res:
+                    # Check if adding this would exceed limit
+                    new_size = len(doc_text) + len(res) + 4  # +4 for "\n\n" separator
+                    if new_size <= MAX_ARCH_DOCS_SIZE:
+                        doc_text += "\n\n" + res
+                    else:
+                        # Truncate this doc to fit remaining space
+                        remaining = MAX_ARCH_DOCS_SIZE - len(doc_text) - 4
+                        if remaining > 100:  # Only add if at least 100 bytes remain
+                            truncated_size = len(res)
+                            doc_text += "\n\n" + res[:remaining] + "\n[... truncated]"
+                            logger.info(f"Architecture docs for {repo_full_name} truncated from {truncated_size} to {remaining} bytes")
+                        break
     except Exception as e:
         logger.error(f"Error fetching repository contents for {repo_full_name}: {e}")
-    readme = await readme_task
-    readme_size = len(readme) if readme else 0
     
-    arch_doc_size = 0
-    # Calculate architecture/other docs size
-    # results contains the content of fetched files (or Exceptions)
-    # We should sum up the lengths of the valid strings found in results (excluding the README which is handled separately)
-    # Note: results comes from fetch_directory_markdown or fetch_file_content calls above.
-    # The logic above already concatenates them into doc_text (excluding README).
-    # So arch_doc_size is simply the length of doc_text before we prepend README.
+    readme = await readme_task
+    
+    # Truncate README if it exceeds limit
+    if readme and len(readme) > MAX_README_SIZE:
+        logger.info(f"README for {repo_full_name} truncated from {len(readme)} to {MAX_README_SIZE} bytes")
+        readme = readme[:MAX_README_SIZE] + "\n[... truncated]"
+    
+    readme_size = len(readme) if readme else 0
     arch_doc_size = len(doc_text)
 
+    # Build final doc, respecting total size limit
     if readme:
-        doc_text = "# README\n" + readme + doc_text
+        combined = "# README\n" + readme + "\n\n" + doc_text
+    else:
+        combined = doc_text
     
-    final_doc = doc_text if doc_text.strip() else "No documentation available."
+    # Final truncation if necessary
+    if len(combined) > MAX_TOTAL_DOC_SIZE:
+        logger.info(f"Total docs for {repo_full_name} truncated from {len(combined)} to {MAX_TOTAL_DOC_SIZE} bytes")
+        combined = combined[:MAX_TOTAL_DOC_SIZE] + "\n[... content truncated to size limit]"
+    
+    final_doc = combined if combined.strip() else "No documentation available."
     return final_doc, readme_size, arch_doc_size
 
 # async def fetch_simple_metadata(repo_full_name: str, headers: dict, client: httpx.AsyncClient) -> dict:

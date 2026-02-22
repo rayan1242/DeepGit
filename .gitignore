@@ -12,3 +12,9 @@ deepsearch.db
 aws/
 
 terraform/
+
+
+TERRAFORM_VALIDATION.md
+FINAL_IAM_POLICY.json
+IAM_POLICY_ANALYSIS.md
+UPDATED_IAM_POLICY.json
