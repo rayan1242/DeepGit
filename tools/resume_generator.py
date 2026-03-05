@@ -1,9 +1,9 @@
 import logging
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 from pathlib import Path
-
+import os
 # Load environment variables (reuse logic from existing tools)
 dotenv_path = Path(__file__).resolve().parent.parent / ".env"
 if dotenv_path.exists():

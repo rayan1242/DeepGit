@@ -8,6 +8,8 @@ RUN echo "Step 1: Installing system dependencies..." && \
     build-essential \
     git \
     pkg-config \
+    libssl-dev \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/* && \
     echo "✓ System dependencies installed"
 
@@ -23,9 +25,9 @@ RUN echo "Step 2: Creating application directories..." && \
 COPY requirements.txt .
 
 RUN echo "Step 3: Installing Python dependencies (this may take a few minutes)..." && \
-    pip install --upgrade pip setuptools wheel build >/dev/null 2>&1 && \
-    pip install torch==2.0.0 --index-url https://download.pytorch.org/whl/cpu && \
-    pip install -r requirements.txt && \
+    pip install --upgrade pip setuptools wheel build && \
+    pip install torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt && \
     echo "✓ Python dependencies installed"
 
 # Copy the rest of the code into the container

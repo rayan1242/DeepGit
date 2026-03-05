@@ -277,7 +277,7 @@ with gr.Blocks(
             gr.Markdown("Connect your GitHub account to bypass rate limits **(5000 requests/hour)** and enable repository cloning.")
             
             with gr.Row():
-                client_id_input = gr.Textbox(label="GitHub Client ID", value=auth.get_client_id() or "", placeholder="Paste your OAuth App Client ID here")
+                client_id_input = gr.Textbox(label="GitHub Client ID", value="", placeholder="Paste your OAuth App Client ID here")
                 save_client_id_btn = gr.Button("Save Client ID")
             
             save_status = gr.Markdown("")
@@ -503,4 +503,4 @@ with gr.Blocks(
     # research_input.submit(...) # (Optional, matching button behavior)
 
     gr.HTML(footer)
-demo.queue(max_size=10).launch()
+demo.queue(max_size=10).launch(server_name="0.0.0.0", server_port=7860)
