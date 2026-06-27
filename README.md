@@ -99,37 +99,6 @@ DeepSearch provides an intuitive interface for exploring repository recommendati
 
 ---
 
-### 👨‍🏭 Setup Instructions
-
-#### 1. Clone the Repository
-```bash
-git clone https://github.com/zamalali/DeepSearch.git
-cd DeepSearch
-```
-
-#### 2. Create a Virtual Environment (Recommended)
-```bash
-python3 -m venv venv
-source venv/bin/activate   # On Windows: venv\Scripts\activate
-```
-
-#### 3. Upgrade pip (Optional but Recommended)
-```bash
-pip install --upgrade pip
-```
-
-#### 4. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-#### 5. 🚀 Running DeepSearch via App
-
-To run DeepSearch locally, simply execute:
-
-```bash
-python app.py
-```
 
 
 ### 🛠️ Troubleshooting
