@@ -7,7 +7,7 @@
   <img src="assets/workflow.png" alt="Langgraph Workflow Diagram" style="max-width: 800px; width: 100%; height: auto;" />
 </p>
 
-### DeepSearch 2.0 🤯 — now **hardware‑aware** & **ColBERT‑powered**
+### DeepGit  🤯 — now **hardware‑aware** & **ColBERT‑powered**
 
 ## DeepGit
 
