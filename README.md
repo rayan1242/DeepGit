@@ -11,12 +11,7 @@
 **DeepSearch** is an advanced, Langgraph-based agentic workflow designed to perform deep research across GitHub repositories. It intelligently searches, analyzes, and ranks repositories based on u[...]
 
 ---
-### Try out the Lite version here 🧑‍🎓
 
-DeepGit-lite is a lightweight version of DeepSearch running on zero GPU on Hugging Face Space [here.](https://huggingface.co/spaces/zamal/DeepSearch) <br>
-It may not perform as well as the full version, but it's great for a quick first-hand preview.
-
----
 
 ### 📹 Demo Video
 
